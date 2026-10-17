@@ -1,0 +1,1179 @@
+{
+  "$defs": {
+    "Meta": {
+      "properties": {
+        "title": {
+          "default": "",
+          "title": "Title",
+          "type": "string"
+        },
+        "artist": {
+          "default": "",
+          "title": "Artist",
+          "type": "string"
+        },
+        "meaning": {
+          "default": "",
+          "title": "Meaning",
+          "type": "string"
+        },
+        "genre": {
+          "default": "",
+          "title": "Genre",
+          "type": "string"
+        },
+        "mood_tags": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Mood Tags",
+          "type": "array"
+        },
+        "energy": {
+          "default": "medium",
+          "enum": [
+            "low",
+            "medium",
+            "high"
+          ],
+          "title": "Energy",
+          "type": "string"
+        },
+        "influences": {
+          "default": "",
+          "title": "Influences",
+          "type": "string"
+        }
+      },
+      "title": "Meta",
+      "type": "object"
+    },
+    "Settings": {
+      "properties": {
+        "lyric_video": {
+          "default": true,
+          "title": "Lyric Video",
+          "type": "boolean"
+        },
+        "aspect": {
+          "default": "16:9",
+          "enum": [
+            "16:9",
+            "9:16",
+            "1:1"
+          ],
+          "title": "Aspect",
+          "type": "string"
+        },
+        "resolution": {
+          "default": "1080p",
+          "enum": [
+            "720p",
+            "1080p"
+          ],
+          "title": "Resolution",
+          "type": "string"
+        },
+        "fps": {
+          "default": 30,
+          "title": "Fps",
+          "type": "integer"
+        },
+        "style_effort": {
+          "default": "high",
+          "enum": [
+            "low",
+            "medium",
+            "high",
+            "xhigh",
+            "max"
+          ],
+          "title": "Style Effort",
+          "type": "string"
+        },
+        "visual_mode": {
+          "default": "abstract",
+          "enum": [
+            "abstract",
+            "scenes",
+            "both"
+          ],
+          "title": "Visual Mode",
+          "type": "string"
+        }
+      },
+      "title": "Settings",
+      "type": "object"
+    },
+    "Project": {
+      "properties": {
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "lyrics_text": {
+          "default": "",
+          "title": "Lyrics Text",
+          "type": "string"
+        },
+        "meta": {
+          "$ref": "#/$defs/Meta"
+        },
+        "settings": {
+          "$ref": "#/$defs/Settings"
+        },
+        "section_descriptions": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Section Descriptions",
+          "type": "array"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "title": "Project",
+      "type": "object"
+    },
+    "Section": {
+      "properties": {
+        "start": {
+          "title": "Start",
+          "type": "number"
+        },
+        "end": {
+          "title": "End",
+          "type": "number"
+        },
+        "label": {
+          "title": "Label",
+          "type": "string"
+        }
+      },
+      "required": [
+        "start",
+        "end",
+        "label"
+      ],
+      "title": "Section",
+      "type": "object"
+    },
+    "AnalysisData": {
+      "properties": {
+        "duration": {
+          "title": "Duration",
+          "type": "number"
+        },
+        "bpm": {
+          "title": "Bpm",
+          "type": "number"
+        },
+        "key": {
+          "title": "Key",
+          "type": "string"
+        },
+        "beats": {
+          "items": {
+            "type": "number"
+          },
+          "title": "Beats",
+          "type": "array"
+        },
+        "downbeats": {
+          "items": {
+            "type": "number"
+          },
+          "title": "Downbeats",
+          "type": "array"
+        },
+        "onsets": {
+          "items": {
+            "type": "number"
+          },
+          "title": "Onsets",
+          "type": "array"
+        },
+        "sections": {
+          "items": {
+            "$ref": "#/$defs/Section"
+          },
+          "title": "Sections",
+          "type": "array"
+        },
+        "fps": {
+          "default": 30,
+          "title": "Fps",
+          "type": "integer"
+        },
+        "rms": {
+          "items": {
+            "type": "number"
+          },
+          "title": "Rms",
+          "type": "array"
+        },
+        "low": {
+          "items": {
+            "type": "number"
+          },
+          "title": "Low",
+          "type": "array"
+        },
+        "mid": {
+          "items": {
+            "type": "number"
+          },
+          "title": "Mid",
+          "type": "array"
+        },
+        "high": {
+          "items": {
+            "type": "number"
+          },
+          "title": "High",
+          "type": "array"
+        },
+        "spectral_centroid": {
+          "items": {
+            "type": "number"
+          },
+          "title": "Spectral Centroid",
+          "type": "array"
+        },
+        "onset_strength": {
+          "items": {
+            "type": "number"
+          },
+          "title": "Onset Strength",
+          "type": "array"
+        },
+        "chroma": {
+          "items": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array"
+          },
+          "title": "Chroma",
+          "type": "array"
+        }
+      },
+      "required": [
+        "duration",
+        "bpm",
+        "key",
+        "beats",
+        "downbeats",
+        "onsets",
+        "sections",
+        "rms",
+        "low",
+        "mid",
+        "high",
+        "spectral_centroid",
+        "onset_strength",
+        "chroma"
+      ],
+      "title": "AnalysisData",
+      "type": "object"
+    },
+    "Line": {
+      "properties": {
+        "start": {
+          "title": "Start",
+          "type": "number"
+        },
+        "end": {
+          "title": "End",
+          "type": "number"
+        },
+        "text": {
+          "title": "Text",
+          "type": "string"
+        },
+        "words": {
+          "items": {
+            "$ref": "#/$defs/Word"
+          },
+          "title": "Words",
+          "type": "array"
+        }
+      },
+      "required": [
+        "start",
+        "end",
+        "text"
+      ],
+      "title": "Line",
+      "type": "object"
+    },
+    "Word": {
+      "properties": {
+        "start": {
+          "title": "Start",
+          "type": "number"
+        },
+        "end": {
+          "title": "End",
+          "type": "number"
+        },
+        "text": {
+          "title": "Text",
+          "type": "string"
+        },
+        "low_confidence": {
+          "default": false,
+          "title": "Low Confidence",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "start",
+        "end",
+        "text"
+      ],
+      "title": "Word",
+      "type": "object"
+    },
+    "Lyrics": {
+      "properties": {
+        "lines": {
+          "items": {
+            "$ref": "#/$defs/Line"
+          },
+          "title": "Lines",
+          "type": "array"
+        }
+      },
+      "required": [
+        "lines"
+      ],
+      "title": "Lyrics",
+      "type": "object"
+    },
+    "StyleGlobal": {
+      "properties": {
+        "palette": {
+          "items": {
+            "pattern": "^#[0-9a-fA-F]{6}$",
+            "type": "string"
+          },
+          "title": "Palette",
+          "type": "array"
+        },
+        "font_family": {
+          "title": "Font Family",
+          "type": "string"
+        },
+        "typography_style": {
+          "enum": [
+            "bold",
+            "elegant",
+            "handwritten",
+            "mono",
+            "condensed"
+          ],
+          "title": "Typography Style",
+          "type": "string"
+        },
+        "background_preset": {
+          "enum": [
+            "gradientFlow",
+            "particleField",
+            "spectrumRings",
+            "geometricGrid",
+            "tunnel",
+            "waveformRibbon",
+            "ripples",
+            "halftoneBloom",
+            "orbits"
+          ],
+          "title": "Background Preset",
+          "type": "string"
+        },
+        "grain": {
+          "default": 0.0,
+          "maximum": 1,
+          "minimum": 0,
+          "title": "Grain",
+          "type": "number"
+        },
+        "vignette": {
+          "default": 0.0,
+          "maximum": 1,
+          "minimum": 0,
+          "title": "Vignette",
+          "type": "number"
+        },
+        "look": {
+          "default": "clean",
+          "enum": [
+            "clean",
+            "riso"
+          ],
+          "title": "Look",
+          "type": "string"
+        }
+      },
+      "required": [
+        "palette",
+        "font_family",
+        "typography_style",
+        "background_preset"
+      ],
+      "title": "StyleGlobal",
+      "type": "object"
+    },
+    "StyleSection": {
+      "properties": {
+        "section_ref": {
+          "title": "Section Ref",
+          "type": "integer"
+        },
+        "visual_preset": {
+          "enum": [
+            "gradientFlow",
+            "particleField",
+            "spectrumRings",
+            "geometricGrid",
+            "tunnel",
+            "waveformRibbon",
+            "ripples",
+            "halftoneBloom",
+            "orbits"
+          ],
+          "title": "Visual Preset",
+          "type": "string"
+        },
+        "preset_params": {
+          "additionalProperties": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "string"
+              }
+            ]
+          },
+          "title": "Preset Params",
+          "type": "object"
+        },
+        "intensity": {
+          "maximum": 1,
+          "minimum": 0,
+          "title": "Intensity",
+          "type": "number"
+        },
+        "palette_shift": {
+          "default": 0.0,
+          "maximum": 1,
+          "minimum": -1,
+          "title": "Palette Shift",
+          "type": "number"
+        },
+        "palette_override": {
+          "anyOf": [
+            {
+              "items": {
+                "pattern": "^#[0-9a-fA-F]{6}$",
+                "type": "string"
+              },
+              "maxItems": 8,
+              "minItems": 2,
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Palette Override"
+        },
+        "camera_motion": {
+          "default": "none",
+          "enum": [
+            "none",
+            "slowZoom",
+            "drift",
+            "shake",
+            "pulse",
+            "handheld"
+          ],
+          "title": "Camera Motion",
+          "type": "string"
+        },
+        "lyric_animation": {
+          "default": "pop",
+          "enum": [
+            "karaoke",
+            "pop",
+            "typewriter",
+            "kinetic",
+            "inkStamp",
+            "dotDissolve",
+            "handwrite"
+          ],
+          "title": "Lyric Animation",
+          "type": "string"
+        },
+        "transition_in": {
+          "default": "crossfade",
+          "enum": [
+            "crossfade",
+            "flash",
+            "zoomThrough",
+            "iris",
+            "dive",
+            "push",
+            "whip",
+            "wipe",
+            "punch"
+          ],
+          "title": "Transition In",
+          "type": "string"
+        }
+      },
+      "required": [
+        "section_ref",
+        "visual_preset",
+        "intensity"
+      ],
+      "title": "StyleSection",
+      "type": "object"
+    },
+    "StylePlan": {
+      "properties": {
+        "global": {
+          "$ref": "#/$defs/StyleGlobal"
+        },
+        "sections": {
+          "items": {
+            "$ref": "#/$defs/StyleSection"
+          },
+          "title": "Sections",
+          "type": "array"
+        },
+        "emphasis_words": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Emphasis Words",
+          "type": "array"
+        },
+        "rationale": {
+          "default": "",
+          "title": "Rationale",
+          "type": "string"
+        }
+      },
+      "required": [
+        "global",
+        "sections"
+      ],
+      "title": "StylePlan",
+      "type": "object"
+    },
+    "RenderStatus": {
+      "properties": {
+        "state": {
+          "enum": [
+            "queued",
+            "bundling",
+            "rendering",
+            "encoding",
+            "done",
+            "error"
+          ],
+          "title": "State",
+          "type": "string"
+        },
+        "progress": {
+          "maximum": 1,
+          "minimum": 0,
+          "title": "Progress",
+          "type": "number"
+        },
+        "clip": {
+          "default": false,
+          "title": "Clip",
+          "type": "boolean"
+        },
+        "error": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Error"
+        },
+        "width": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Width"
+        },
+        "height": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Height"
+        },
+        "fps": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Fps"
+        }
+      },
+      "required": [
+        "state",
+        "progress"
+      ],
+      "title": "RenderStatus",
+      "type": "object"
+    },
+    "ProjectSummary": {
+      "properties": {
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "title": {
+          "title": "Title",
+          "type": "string"
+        },
+        "artist": {
+          "title": "Artist",
+          "type": "string"
+        },
+        "modified": {
+          "description": "Unix seconds of the last change to project.json",
+          "title": "Modified",
+          "type": "number"
+        },
+        "has_analysis": {
+          "title": "Has Analysis",
+          "type": "boolean"
+        },
+        "has_lyrics": {
+          "title": "Has Lyrics",
+          "type": "boolean"
+        },
+        "has_plan": {
+          "title": "Has Plan",
+          "type": "boolean"
+        },
+        "has_video": {
+          "title": "Has Video",
+          "type": "boolean"
+        },
+        "path": {
+          "default": "",
+          "title": "Path",
+          "type": "string"
+        },
+        "missing": {
+          "default": false,
+          "title": "Missing",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "id",
+        "title",
+        "artist",
+        "modified",
+        "has_analysis",
+        "has_lyrics",
+        "has_plan",
+        "has_video"
+      ],
+      "title": "ProjectSummary",
+      "type": "object"
+    },
+    "ProcessStatus": {
+      "properties": {
+        "state": {
+          "enum": [
+            "queued",
+            "running",
+            "done",
+            "error"
+          ],
+          "title": "State",
+          "type": "string"
+        },
+        "stage": {
+          "title": "Stage",
+          "type": "string"
+        },
+        "progress": {
+          "maximum": 1,
+          "minimum": 0,
+          "title": "Progress",
+          "type": "number"
+        },
+        "error": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Error"
+        }
+      },
+      "required": [
+        "state",
+        "stage",
+        "progress"
+      ],
+      "title": "ProcessStatus",
+      "type": "object"
+    },
+    "Character": {
+      "properties": {
+        "id": {
+          "maxLength": 40,
+          "minLength": 1,
+          "pattern": "^[a-z0-9_]+$",
+          "title": "Id",
+          "type": "string"
+        },
+        "name": {
+          "default": "",
+          "title": "Name",
+          "type": "string"
+        },
+        "description": {
+          "default": "",
+          "description": "Who they are; shown in the editor and given to Claude for continuity",
+          "title": "Description",
+          "type": "string"
+        },
+        "hair": {
+          "default": "short",
+          "enum": [
+            "none",
+            "short",
+            "long",
+            "bun",
+            "hat",
+            "hood"
+          ],
+          "title": "Hair",
+          "type": "string"
+        },
+        "outfit": {
+          "default": "tee",
+          "enum": [
+            "tee",
+            "coat",
+            "dress",
+            "hoodie"
+          ],
+          "title": "Outfit",
+          "type": "string"
+        },
+        "build": {
+          "default": 1.0,
+          "description": "Height scale",
+          "maximum": 1.15,
+          "minimum": 0.85,
+          "title": "Build",
+          "type": "number"
+        },
+        "colors": {
+          "$ref": "#/$defs/CharacterColors"
+        },
+        "svg": {
+          "anyOf": [
+            {
+              "maxLength": 60000,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Svg"
+        }
+      },
+      "required": [
+        "id",
+        "colors"
+      ],
+      "title": "Character",
+      "type": "object"
+    },
+    "CharacterColors": {
+      "properties": {
+        "body": {
+          "pattern": "^#[0-9a-fA-F]{6}$",
+          "title": "Body",
+          "type": "string"
+        },
+        "hair": {
+          "pattern": "^#[0-9a-fA-F]{6}$",
+          "title": "Hair",
+          "type": "string"
+        },
+        "top": {
+          "pattern": "^#[0-9a-fA-F]{6}$",
+          "title": "Top",
+          "type": "string"
+        },
+        "bottom": {
+          "pattern": "^#[0-9a-fA-F]{6}$",
+          "title": "Bottom",
+          "type": "string"
+        },
+        "accent": {
+          "pattern": "^#[0-9a-fA-F]{6}$",
+          "title": "Accent",
+          "type": "string"
+        }
+      },
+      "required": [
+        "body",
+        "hair",
+        "top",
+        "bottom",
+        "accent"
+      ],
+      "title": "CharacterColors",
+      "type": "object"
+    },
+    "CustomObject": {
+      "properties": {
+        "id": {
+          "maxLength": 40,
+          "minLength": 1,
+          "pattern": "^[a-z0-9_]+$",
+          "title": "Id",
+          "type": "string"
+        },
+        "name": {
+          "default": "",
+          "title": "Name",
+          "type": "string"
+        },
+        "description": {
+          "default": "",
+          "description": "What it looks like; given to Claude when drawing it",
+          "title": "Description",
+          "type": "string"
+        },
+        "size": {
+          "default": "medium",
+          "enum": [
+            "small",
+            "medium",
+            "large"
+          ],
+          "title": "Size",
+          "type": "string"
+        },
+        "svg": {
+          "anyOf": [
+            {
+              "maxLength": 60000,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Svg"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "title": "CustomObject",
+      "type": "object"
+    },
+    "Scene": {
+      "properties": {
+        "section_ref": {
+          "title": "Section Ref",
+          "type": "integer"
+        },
+        "description": {
+          "default": "",
+          "description": "One-line storyboard note",
+          "title": "Description",
+          "type": "string"
+        },
+        "setting": {
+          "enum": [
+            "road",
+            "city",
+            "field",
+            "room",
+            "shore",
+            "forest",
+            "void"
+          ],
+          "title": "Setting",
+          "type": "string"
+        },
+        "time_of_day": {
+          "default": "night",
+          "enum": [
+            "dawn",
+            "day",
+            "dusk",
+            "night"
+          ],
+          "title": "Time Of Day",
+          "type": "string"
+        },
+        "weather": {
+          "default": "clear",
+          "enum": [
+            "clear",
+            "rain",
+            "snow",
+            "fog"
+          ],
+          "title": "Weather",
+          "type": "string"
+        },
+        "characters": {
+          "items": {
+            "$ref": "#/$defs/SceneCharacter"
+          },
+          "maxItems": 3,
+          "title": "Characters",
+          "type": "array"
+        },
+        "crowd": {
+          "default": 0,
+          "description": "Faceless background silhouettes",
+          "maximum": 8,
+          "minimum": 0,
+          "title": "Crowd",
+          "type": "integer"
+        },
+        "props": {
+          "items": {
+            "enum": [
+              "lamp",
+              "bench",
+              "tree",
+              "house",
+              "suitcase"
+            ],
+            "type": "string"
+          },
+          "maxItems": 4,
+          "title": "Props",
+          "type": "array"
+        },
+        "objects": {
+          "items": {
+            "$ref": "#/$defs/SceneObject"
+          },
+          "maxItems": 3,
+          "title": "Objects",
+          "type": "array"
+        },
+        "illustration": {
+          "anyOf": [
+            {
+              "enum": [
+                "library",
+                "freeform"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Illustration"
+        },
+        "background_svg": {
+          "anyOf": [
+            {
+              "maxLength": 60000,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Background Svg"
+        }
+      },
+      "required": [
+        "section_ref",
+        "setting"
+      ],
+      "title": "Scene",
+      "type": "object"
+    },
+    "SceneCharacter": {
+      "properties": {
+        "character_id": {
+          "title": "Character Id",
+          "type": "string"
+        },
+        "action": {
+          "default": "idle",
+          "enum": [
+            "idle",
+            "walk",
+            "run",
+            "sit",
+            "wave",
+            "look_up",
+            "reach",
+            "dance",
+            "jump",
+            "slump"
+          ],
+          "title": "Action",
+          "type": "string"
+        },
+        "expression": {
+          "anyOf": [
+            {
+              "enum": [
+                "neutral",
+                "happy",
+                "sad",
+                "surprised",
+                "calm",
+                "determined"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Expression"
+        },
+        "placement": {
+          "default": "center",
+          "enum": [
+            "left",
+            "center",
+            "right"
+          ],
+          "title": "Placement",
+          "type": "string"
+        },
+        "facing": {
+          "default": "right",
+          "enum": [
+            "left",
+            "right"
+          ],
+          "title": "Facing",
+          "type": "string"
+        }
+      },
+      "required": [
+        "character_id"
+      ],
+      "title": "SceneCharacter",
+      "type": "object"
+    },
+    "SceneObject": {
+      "properties": {
+        "object_id": {
+          "title": "Object Id",
+          "type": "string"
+        },
+        "placement": {
+          "default": "right",
+          "enum": [
+            "left",
+            "center",
+            "right"
+          ],
+          "title": "Placement",
+          "type": "string"
+        }
+      },
+      "required": [
+        "object_id"
+      ],
+      "title": "SceneObject",
+      "type": "object"
+    },
+    "Storyboard": {
+      "properties": {
+        "illustration": {
+          "default": "library",
+          "enum": [
+            "library",
+            "freeform"
+          ],
+          "title": "Illustration",
+          "type": "string"
+        },
+        "cast": {
+          "items": {
+            "$ref": "#/$defs/Character"
+          },
+          "maxItems": 6,
+          "title": "Cast",
+          "type": "array"
+        },
+        "objects": {
+          "items": {
+            "$ref": "#/$defs/CustomObject"
+          },
+          "maxItems": 8,
+          "title": "Objects",
+          "type": "array"
+        },
+        "scenes": {
+          "items": {
+            "$ref": "#/$defs/Scene"
+          },
+          "title": "Scenes",
+          "type": "array"
+        }
+      },
+      "title": "Storyboard",
+      "type": "object"
+    }
+  }
+}

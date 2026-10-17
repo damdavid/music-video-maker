@@ -1,0 +1,22 @@
+{
+  "name": "music-video-maker",
+  "private": true,
+  "workspaces": [
+    "video",
+    "web"
+  ],
+  "scripts": {
+    "dev": "concurrently -k -n api,web -c blue,green \"npm:dev:api\" \"npm:dev:web\"",
+    "dev:api": "cd backend && uv run python -m uvicorn app.main:app --reload --port 8000",
+    "dev:web": "npm run dev -w web",
+    "types": "json2ts -i shared/schema/schema.json -o shared/types.ts --unreachableDefinitions --no-additionalProperties",
+    "studio": "npm run studio -w video",
+    "schema": "cd backend && uv run python -m app.export_schema && cd .. && npm run types",
+    "test": "npm run test -w video"
+  },
+  "devDependencies": {
+    "concurrently": "^10.0.6",
+    "json-schema-to-typescript": "^15.0.0",
+    "typescript": "^5.6.0"
+  }
+}

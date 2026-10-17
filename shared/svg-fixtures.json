@@ -1,0 +1,227 @@
+[
+ {
+  "name": "valid figure with animatable parts",
+  "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 100 200\"><g id=\"figure\"><g id=\"leg_l\" data-pivot=\"45,100\"><rect x=\"40\" y=\"100\" width=\"8\" height=\"90\" fill=\"#223\"/></g><g id=\"arm_r\" data-pivot=\"55,60\"><rect x=\"52\" y=\"60\" width=\"6\" height=\"45\" fill=\"#c33\"/></g><circle id=\"head\" data-pivot=\"50,40\" cx=\"50\" cy=\"40\" r=\"12\" fill=\"#eca\"/></g></svg>",
+  "ok": true,
+  "mustContain": [
+   "id=\"arm_r\"",
+   "data-pivot=\"55,60\"",
+   "<circle"
+  ],
+  "mustNotContain": []
+ },
+ {
+  "name": "a well-formed data-face is kept and a malformed one is dropped",
+  "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 100 200\"><g id=\"head\" data-pivot=\"50,40\" data-face=\"54,30,12\"><circle cx=\"50\" cy=\"30\" r=\"12\" fill=\"#eca\"/></g><g id=\"torso\" data-face=\"javascript:1\"><rect x=\"40\" y=\"45\" width=\"20\" height=\"50\"/></g></svg>",
+  "ok": true,
+  "mustContain": [
+   "data-face=\"54,30,12\""
+  ],
+  "mustNotContain": [
+   "javascript"
+  ]
+ },
+ {
+  "name": "script element and its text are removed",
+  "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 100 200\"><script>alert(1)</script><rect x=\"0\" y=\"0\" width=\"10\" height=\"10\"/></svg>",
+  "ok": true,
+  "mustContain": [
+   "<rect"
+  ],
+  "mustNotContain": [
+   "script",
+   "alert"
+  ]
+ },
+ {
+  "name": "event handler attributes are removed",
+  "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 100 200\" onload=\"steal()\"><rect onclick=\"x()\" onmouseover=\"y()\" x=\"0\" y=\"0\" width=\"10\" height=\"10\"/></svg>",
+  "ok": true,
+  "mustContain": [
+   "<rect"
+  ],
+  "mustNotContain": [
+   "onclick",
+   "onload",
+   "onmouseover",
+   "steal"
+  ]
+ },
+ {
+  "name": "foreignObject and its html children are removed",
+  "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 100 200\"><foreignObject x=\"0\" y=\"0\" width=\"50\" height=\"50\"><iframe src=\"http://evil.example/\"></iframe></foreignObject><rect x=\"0\" y=\"0\" width=\"5\" height=\"5\"/></svg>",
+  "ok": true,
+  "mustContain": [
+   "<rect"
+  ],
+  "mustNotContain": [
+   "foreignObject",
+   "iframe",
+   "evil"
+  ]
+ },
+ {
+  "name": "external image is removed",
+  "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 100 200\"><image href=\"http://evil.example/x.png\" x=\"0\" y=\"0\" width=\"10\" height=\"10\"/><rect x=\"0\" y=\"0\" width=\"5\" height=\"5\"/></svg>",
+  "ok": true,
+  "mustContain": [
+   "<rect"
+  ],
+  "mustNotContain": [
+   "image",
+   "evil"
+  ]
+ },
+ {
+  "name": "use pointing outside the document is dropped",
+  "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" xmlns:xlink=\"http://www.w3.org/1999/xlink\" viewBox=\"0 0 100 200\"><use xlink:href=\"http://evil.example/a.svg#b\"/><use href=\"data:image/svg+xml,xx\"/><rect x=\"0\" y=\"0\" width=\"5\" height=\"5\"/></svg>",
+  "ok": true,
+  "mustContain": [
+   "<rect"
+  ],
+  "mustNotContain": [
+   "evil",
+   "data:"
+  ]
+ },
+ {
+  "name": "use pointing at an internal id is kept",
+  "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 100 200\"><defs><circle id=\"dot\" cx=\"5\" cy=\"5\" r=\"5\"/></defs><use href=\"#dot\" x=\"20\" y=\"20\"/></svg>",
+  "ok": true,
+  "mustContain": [
+   "href=\"#dot\"",
+   "<use"
+  ],
+  "mustNotContain": []
+ },
+ {
+  "name": "external url() in a paint attribute is dropped",
+  "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 100 200\"><rect fill=\"url(http://evil.example/p.svg#a)\" x=\"0\" y=\"0\" width=\"10\" height=\"10\"/></svg>",
+  "ok": true,
+  "mustContain": [
+   "<rect"
+  ],
+  "mustNotContain": [
+   "evil",
+   "url("
+  ]
+ },
+ {
+  "name": "internal gradient reference is kept",
+  "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 100 200\"><defs><linearGradient id=\"grad\"><stop offset=\"0\" stop-color=\"#fff\"/><stop offset=\"1\" stop-color=\"#000\"/></linearGradient></defs><rect fill=\"url(#grad)\" x=\"0\" y=\"0\" width=\"10\" height=\"10\"/></svg>",
+  "ok": true,
+  "mustContain": [
+   "url(#grad)",
+   "<linearGradient",
+   "<stop"
+  ],
+  "mustNotContain": []
+ },
+ {
+  "name": "style element and attribute are removed",
+  "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 100 200\"><style>@import url(http://evil.example/x.css); rect {fill:red}</style><rect style=\"fill:url(http://evil.example)\" x=\"0\" y=\"0\" width=\"10\" height=\"10\"/></svg>",
+  "ok": true,
+  "mustContain": [
+   "<rect"
+  ],
+  "mustNotContain": [
+   "style",
+   "evil",
+   "@import"
+  ]
+ },
+ {
+  "name": "anchor and javascript links are removed",
+  "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 100 200\"><a href=\"javascript:alert(1)\"><rect x=\"0\" y=\"0\" width=\"10\" height=\"10\"/></a></svg>",
+  "ok": true,
+  "mustContain": [],
+  "mustNotContain": [
+   "javascript",
+   "<a"
+  ]
+ },
+ {
+  "name": "animation elements are removed",
+  "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 100 200\"><rect x=\"0\" y=\"0\" width=\"10\" height=\"10\"><animate attributeName=\"x\" to=\"50\" dur=\"1s\"/><set attributeName=\"fill\" to=\"red\"/></rect><animateTransform attributeName=\"transform\"/></svg>",
+  "ok": true,
+  "mustContain": [
+   "<rect"
+  ],
+  "mustNotContain": [
+   "animate",
+   "<set"
+  ]
+ },
+ {
+  "name": "text elements are removed",
+  "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 100 200\"><text x=\"0\" y=\"10\">hello</text><rect x=\"0\" y=\"0\" width=\"5\" height=\"5\"/></svg>",
+  "ok": true,
+  "mustContain": [
+   "<rect"
+  ],
+  "mustNotContain": [
+   "<text",
+   "hello"
+  ]
+ },
+ {
+  "name": "doctype with entities is rejected outright",
+  "svg": "<!DOCTYPE svg [<!ENTITY a \"aaaaaaaaaa\"><!ENTITY b \"&a;&a;&a;&a;\">]><svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 100 200\"><rect x=\"0\" y=\"0\" width=\"5\" height=\"5\"/></svg>",
+  "ok": false,
+  "mustContain": [],
+  "mustNotContain": []
+ },
+ {
+  "name": "a non-svg root is rejected",
+  "svg": "<html><body><script>alert(1)</script></body></html>",
+  "ok": false,
+  "mustContain": [],
+  "mustNotContain": []
+ },
+ {
+  "name": "malformed xml is rejected",
+  "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 100 200\"><rect x=\"0\" y=\"0\" width=\"5\" height=\"5\">",
+  "ok": false,
+  "mustContain": [],
+  "mustNotContain": []
+ },
+ {
+  "name": "unknown elements are removed but their allowed siblings stay",
+  "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 100 200\"><filter id=\"f\"><feGaussianBlur stdDeviation=\"50\"/></filter><rect x=\"0\" y=\"0\" width=\"5\" height=\"5\" filter=\"url(#f)\"/></svg>",
+  "ok": true,
+  "mustContain": [
+   "<rect"
+  ],
+  "mustNotContain": [
+   "filter",
+   "feGaussianBlur"
+  ]
+ },
+ {
+  "name": "css-escaped url() in a paint attribute is dropped",
+  "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 100 200\"><rect x=\"0\" y=\"0\" width=\"10\" height=\"10\" fill=\"\\75 rl(//evil.example/x.svg#g)\" stroke=\"u\\72l(#ok)\"/><circle cx=\"5\" cy=\"5\" r=\"2\" stop-color=\"\\000075rl(evil)\" fill=\"#fff\"/></svg>",
+  "ok": true,
+  "mustContain": [
+   "<rect",
+   "<circle",
+   "fill=\"#fff\""
+  ],
+  "mustNotContain": [
+   "evil",
+   "\\"
+  ]
+ },
+ {
+  "name": "protocol-relative references are dropped",
+  "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 100 200\"><defs><linearGradient id=\"g\"><stop offset=\"0\" stop-color=\"#000\"/></linearGradient></defs><rect x=\"0\" y=\"0\" width=\"10\" height=\"10\" fill=\"url(//evil.example/x.svg#g)\" clip-path=\"//evil.example/c\"/><use href=\"//evil.example/x.svg#g\"/><rect x=\"1\" y=\"1\" width=\"2\" height=\"2\" fill=\"url(#g)\"/></svg>",
+  "ok": true,
+  "mustContain": [
+   "<rect",
+   "fill=\"url(#g)\""
+  ],
+  "mustNotContain": [
+   "evil",
+   "<use"
+  ]
+ }
+]
