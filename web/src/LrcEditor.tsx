@@ -5,6 +5,7 @@ import type { AnalysisData, Lyrics } from "../../shared/types";
 import { errorMessage, importLrc, lrcUrl, saveLyrics } from "./api";
 import { useAlive } from "./jobs";
 import { nudge, setLineTimes, tapLine, updateLine } from "./lyricsOps";
+import { fmtTime } from "./time";
 
 type Props = { projectId: string; audioSrc: string; analysis: AnalysisData; lyrics: Lyrics; onChange: (l: Lyrics) => void };
 
@@ -21,6 +22,7 @@ export function LrcEditor({ projectId, audioSrc, analysis, lyrics, onChange }: P
   const [rawSelected, setSelected] = useState(0);
   const [tap, setTap] = useState(false);
   const [status, setStatus] = useState("");
+  const [position, setPosition] = useState({ time: 0, duration: 0 });
   const lastLine = lyrics.lines.length - 1;
   // Lines can shrink under the selection (e.g. importing a shorter .lrc).
   const selected = Math.max(0, Math.min(rawSelected, lastLine));
@@ -37,10 +39,14 @@ export function LrcEditor({ projectId, audioSrc, analysis, lyrics, onChange }: P
       onChange(updateLine(lyricsRef.current, i, setLineTimes(line, r.start, r.end)));
     });
     plugin.on("region-clicked", (r, e) => {
+      // Section/downbeat regions cover the waveform; letting their clicks through is what seeks.
+      if (!r.id.startsWith("line-")) return;
       e.stopPropagation();
-      const i = Number(r.id.replace("line-", ""));
-      if (!Number.isNaN(i)) setSelected(i);
+      setSelected(Number(r.id.replace("line-", "")));
     });
+    const sync = () => setPosition({ time: wave.getCurrentTime(), duration: wave.getDuration() });
+    wave.on("timeupdate", sync);
+    wave.on("ready", sync);
     return () => wave.destroy();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [audioSrc]);
@@ -112,6 +118,23 @@ export function LrcEditor({ projectId, audioSrc, analysis, lyrics, onChange }: P
         >
           Play / pause
         </button>
+        <input
+          type="range"
+          aria-label="Seek"
+          min={0}
+          max={position.duration}
+          step={0.01}
+          value={position.time}
+          disabled={!position.duration}
+          style={{ flex: 1, minWidth: 160 }}
+          onChange={(e) => {
+            ws.current?.setTime(e.target.valueAsNumber);
+            refocus();
+          }}
+        />
+        <span>
+          {fmtTime(position.time)} / {fmtTime(position.duration)}
+        </span>
         <label>
           <input
             type="checkbox"
@@ -124,7 +147,7 @@ export function LrcEditor({ projectId, audioSrc, analysis, lyrics, onChange }: P
           Tap-to-sync (Space while playing sets the start of the selected line)
         </label>
       </div>
-      <small className="hint">Click here first, then: ↑/↓ select line · Enter play from line · ←/→ nudge 10 ms (Shift: start only) · drag/resize regions</small>
+      <small className="hint">Click the waveform or drag the slider to seek · Click here first, then: ↑/↓ select line · Enter play from line · ←/→ nudge 10 ms (Shift: start only) · drag/resize regions</small>
       <ol className="lines" role="listbox" aria-label="Lyric lines">
         {lyrics.lines.map((l, i) => (
           <li key={i} role="option" aria-selected={i === selected} onClick={() => setSelected(i)} className={i === selected ? "selected" : undefined}>
