@@ -1,5 +1,5 @@
 import { getApiKey } from "./apiKey";
-import type { AnalysisData, Lyrics, Meta, ProcessStatus, Project, ProjectSummary, RenderStatus, Scene, Settings, Storyboard, StylePlan, StyleSection } from "../../shared/types";
+import type { AnalysisData, Lyrics, Meta, ProcessStatus, Project, ProjectSummary, RenderStatus, Scene, SectionEdit, SectionsApplied, Settings, Storyboard, StylePlan, StyleSection } from "../../shared/types";
 
 const BASE = "/api";
 
@@ -133,6 +133,8 @@ export async function startIllustration(id: string, target?: { scenes?: number[]
 export const illustrationStatus = async (id: string) => orNull<ProcessStatus>(await request(`${BASE}/projects/${id}/storyboard/illustrate`));
 
 export const saveSectionDescriptions = async (id: string, descriptions: string[]): Promise<Project> => json(await put(`${BASE}/projects/${id}/section-descriptions`, descriptions));
+
+export const saveSections = async (id: string, edits: SectionEdit[]): Promise<SectionsApplied> => json(await put(`${BASE}/projects/${id}/sections`, edits));
 
 const post = (url: string, body: unknown) => request(url, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
 

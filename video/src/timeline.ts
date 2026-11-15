@@ -99,7 +99,8 @@ export function buildTimeline(a: AnalysisData, kindOf: (section: number) => Tran
   sections.forEach((s, i) => {
     if (i === 0) return void cuts.push(0);
     const next = sections[i + 1]?.start ?? a.duration;
-    cuts.push(snapCut(a, s.start, Math.max(cuts[i - 1], sections[i - 1].start) + 0.1, next - 0.1));
+    // Hand-placed sections cut exactly where they were put; detected ones are only estimates, so they snap to the beat.
+    cuts.push(a.sections_edited ? s.start : snapCut(a, s.start, Math.max(cuts[i - 1], sections[i - 1].start) + 0.1, next - 0.1));
   });
 
   const boundaries: Boundary[] = cuts.map((cut, i) => {

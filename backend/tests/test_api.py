@@ -115,3 +115,45 @@ def test_concurrent_edits_to_different_fields_are_all_kept(tmp_path, monkeypatch
         t.join()
     got = client.get(f"/projects/{pid}").json()
     assert (got["meta"]["title"], got["section_descriptions"], got["lyrics_text"]) == ("T", ["rain"], "words")
+
+
+def test_section_edits_reindex_everything_keyed_by_section(tmp_path, monkeypatch):
+    from app import jobs
+    from app.models import AnalysisData, Scene, Storyboard
+    from tests.test_style_plan import _analysis
+
+    monkeypatch.setattr(main, "PROJECTS_DIR", tmp_path)
+    jobs.JOBS.clear()
+    client = make_client()
+    pid = client.post("/projects", files={"audio": ("a.mp3", b"x")}).json()["id"]
+    assert client.put(f"/projects/{pid}/sections", json=[]).status_code == 409  # not analyzed yet
+
+    analysis = _analysis()
+    n = len(analysis.sections)
+    (tmp_path / pid / "analysis.json").write_text(analysis.model_dump_json())
+    client.put(f"/projects/{pid}/section-descriptions", json=[f"d{i}" for i in range(n)])
+    client.put(f"/projects/{pid}/storyboard", json=Storyboard(scenes=[Scene(section_ref=i, setting="road") for i in range(n)]).model_dump())
+
+    first = analysis.sections[0]
+    mid = (first.start + first.end) / 2
+    split = [{"start": first.start, "end": mid, "label": "a", "from_index": 0}, {"start": mid, "end": first.end, "label": "a2", "from_index": 0}]
+    rest = [{"start": s.start, "end": s.end, "label": s.label, "from_index": i + 1} for i, s in enumerate(analysis.sections[1:])]
+
+    res = client.put(f"/projects/{pid}/sections", json=split + rest)
+    assert res.status_code == 200, res.text
+    body = res.json()
+    assert len(body["sections"]) == n + 1
+    assert body["section_descriptions"][:3] == ["d0", "d0", "d1"]
+    assert [s["section_ref"] for s in body["storyboard"]["scenes"]] == list(range(n + 1))
+
+    saved = AnalysisData.model_validate_json((tmp_path / pid / "analysis.json").read_text())
+    assert saved.sections_edited and len(saved.sections) == n + 1
+    assert client.get(f"/projects/{pid}/storyboard").json()["scenes"][1]["section_ref"] == 1
+    assert client.get(f"/projects/{pid}").json()["section_descriptions"][1] == "d0"
+
+    gap = [dict(split[0]), {**split[1], "start": mid + 1}] + rest
+    assert client.put(f"/projects/{pid}/sections", json=gap).status_code == 422
+
+    jobs.JOBS[(pid, "illustrate")] = jobs.ProcessJob(project_id=pid, kind="illustrate", state="running")
+    assert client.put(f"/projects/{pid}/sections", json=split + rest).status_code == 409
+    jobs.JOBS.clear()

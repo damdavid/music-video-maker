@@ -86,6 +86,8 @@ class AnalysisData(BaseModel):
     spectral_centroid: list[float]
     onset_strength: list[float]
     chroma: list[list[float]]
+    # True once the user has edited `sections`; a new analysis would replace their edits.
+    sections_edited: bool = False
 
 
 class Word(BaseModel):
@@ -273,6 +275,25 @@ class ProjectSummary(BaseModel):
     has_video: bool
     path: str = ""
     missing: bool = False
+
+
+class SectionEdit(BaseModel):
+    """One section of the edited song timeline. Sections must tile the song: the first starts at 0, each starts where the last ends."""
+
+    start: float
+    end: float
+    label: str = Field(min_length=1, max_length=60)
+    # The section (index in the current list) whose style entry, scene and description this one starts from; None for blank.
+    from_index: int | None = None
+
+
+class SectionsApplied(BaseModel):
+    """The state that follows from a section edit, since the style plan, storyboard and descriptions are re-indexed with it."""
+
+    sections: list[Section]
+    section_descriptions: list[str]
+    plan: StylePlan | None = None
+    storyboard: Storyboard | None = None
 
 
 class ProcessStatus(BaseModel):

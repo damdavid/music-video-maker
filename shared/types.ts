@@ -39,6 +39,7 @@ export type High = number[];
 export type SpectralCentroid = number[];
 export type OnsetStrength = number[];
 export type Chroma = number[][];
+export type SectionsEdited = boolean;
 export type Start1 = number;
 export type End1 = number;
 export type Text = string;
@@ -216,6 +217,12 @@ export type Objects1 =
   | [CustomObject, CustomObject, CustomObject, CustomObject, CustomObject, CustomObject, CustomObject]
   | [CustomObject, CustomObject, CustomObject, CustomObject, CustomObject, CustomObject, CustomObject, CustomObject];
 export type Scenes = Scene[];
+export type Start3 = number;
+export type End3 = number;
+export type Label1 = string;
+export type FromIndex = number | null;
+export type Sections2 = Section[];
+export type SectionDescriptions1 = string[];
 
 export interface Schema {
   [k: string]: unknown;
@@ -285,6 +292,7 @@ export interface AnalysisData {
   spectral_centroid: SpectralCentroid;
   onset_strength: OnsetStrength;
   chroma: Chroma;
+  sections_edited?: SectionsEdited;
 }
 /**
  * This interface was referenced by `Schema`'s JSON-Schema
@@ -474,4 +482,28 @@ export interface Storyboard {
   cast?: Cast;
   objects?: Objects1;
   scenes?: Scenes;
+}
+/**
+ * One section of the edited song timeline. Sections must tile the song: the first starts at 0, each starts where the last ends.
+ *
+ * This interface was referenced by `Schema`'s JSON-Schema
+ * via the `definition` "SectionEdit".
+ */
+export interface SectionEdit {
+  start: Start3;
+  end: End3;
+  label: Label1;
+  from_index?: FromIndex;
+}
+/**
+ * The state that follows from a section edit, since the style plan, storyboard and descriptions are re-indexed with it.
+ *
+ * This interface was referenced by `Schema`'s JSON-Schema
+ * via the `definition` "SectionsApplied".
+ */
+export interface SectionsApplied {
+  sections: Sections2;
+  section_descriptions: SectionDescriptions1;
+  plan?: StylePlan | null;
+  storyboard?: Storyboard | null;
 }
