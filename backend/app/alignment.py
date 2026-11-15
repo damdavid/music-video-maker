@@ -4,7 +4,7 @@ import stable_whisper
 
 from app.models import Line, Lyrics, Word
 
-MODEL = "small"
+MODEL = "medium"
 # Words Whisper aligns below this probability are flagged for the editor.
 LOW_CONFIDENCE = 0.5
 
