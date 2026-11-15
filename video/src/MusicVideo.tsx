@@ -121,7 +121,7 @@ export const MusicVideo = ({ analysis, lyrics, plan: planProp, storyboard, meta,
             <Preset uid={`p${i}`} frame={seriesFrame(analysis, t)} t={t} width={width} height={height} analysis={analysis} palette={pal} intensity={s.intensity} seed={seed} params={params} />
           </Camera>
         )}
-        {scene && <SceneLayer uid={`sc${i}`} scene={scene} cast={cast} objects={objects} t={t} width={width} height={height} analysis={analysis} palette={pal} seed={seed} showSky={mode === "scenes"} cam={cam} />}
+        {scene && <SceneLayer uid={`sc${i}`} scene={scene} cast={cast} objects={objects} t={t} width={width} height={height} analysis={analysis} palette={pal} seed={seed} showSky={mode === "scenes"} cam={cam} lyrics={lyrics} />}
       </>
     );
   };

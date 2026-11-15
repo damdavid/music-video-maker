@@ -24,7 +24,7 @@ export type Pose = {
 
 export type Pt = { x: number; y: number };
 
-export const SEG = { torso: 0.3, neck: 0.035, headR: 0.062, upperArm: 0.165, foreArm: 0.155, thigh: 0.245, shin: 0.235 } as const;
+export const SEG = { torso: 0.3, neck: 0.035, headR: 0.07, upperArm: 0.165, foreArm: 0.155, thigh: 0.245, shin: 0.235 } as const;
 
 export type Joints = {
   hip: Pt;

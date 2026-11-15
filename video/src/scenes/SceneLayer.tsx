@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import type { AnalysisData, Weather } from "../../../shared/types";
+import type { AnalysisData, Lyrics, Weather } from "../../../shared/types";
 import { depthTransform, type CameraState } from "../Camera";
 import { smoothed } from "../features";
 import { wobble } from "../motion";
@@ -9,6 +9,7 @@ import { beatPhase, beatPulse } from "../timing";
 import { groundSpeed, poseFor, type ActionCtx } from "./actions";
 import { Background, bleedOf } from "./backgrounds";
 import { featureColor } from "./face";
+import { mouthOpen } from "./lip";
 import { Figure } from "./Figure";
 import { FreeformBackground, FreeformFigure } from "./freeform";
 import { ObjectArt } from "./objects";
@@ -32,6 +33,8 @@ type Props = {
   /** false in "both" mode, so the abstract visuals show through where the sky would be. */
   showSky: boolean;
   cam: CameraState;
+  /** The lead character mouths these words. */
+  lyrics: Lyrics | null;
 };
 
 const WIND: Record<Weather, number> = { clear: 0.15, fog: 0.05, rain: 0.6, snow: 0.4 };
@@ -44,7 +47,7 @@ const wrapX = (x: number, w: number, margin: number) => {
   return ((((x + margin) % span) + span) % span) - margin;
 };
 
-export const SceneLayer = ({ uid, scene, cast, objects, t, width: w, height: h, analysis, palette, seed, showSky, cam }: Props) => {
+export const SceneLayer = ({ uid, scene, cast, objects, t, width: w, height: h, analysis, palette, seed, showSky, cam, lyrics }: Props) => {
   const c = sceneColors(palette, scene.time_of_day);
   const portrait = h > w;
   // A free-form backdrop is drawn with its ground line at 77% of the height in every aspect ratio (it is cropped, not squeezed).
@@ -167,7 +170,7 @@ export const SceneLayer = ({ uid, scene, cast, objects, t, width: w, height: h, 
           return art ? (
             <FreeformFigure key={`${ch.id}-${i}`} art={art} uid={`${uid}-c${i}`} pose={pose} action={sc.action} t={ft} beat={beat} x={x} y={gy} size={unit * ch.build} facing={sc.facing} mood={sc.expression} faceColor={featureColor(ch.colors.body)} shadow={c.ink} />
           ) : (
-            <Figure key={`${ch.id}-${i}`} pose={pose} colors={ch.colors} hair={ch.hair} outfit={ch.outfit} x={x} y={gy} size={unit * ch.build} facing={sc.facing} face={{ mood: sc.expression, t: ft }} shadow={c.ink} />
+            <Figure key={`${ch.id}-${i}`} pose={pose} colors={ch.colors} hair={ch.hair} outfit={ch.outfit} x={x} y={gy} size={unit * ch.build} facing={sc.facing} face={{ mood: sc.expression, t: ft, open: i === 0 ? mouthOpen(lyrics, t) : 0 }} shadow={c.ink} />
           );
         })}
       </g>

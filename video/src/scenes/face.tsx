@@ -1,5 +1,5 @@
 import type { Action, Expression } from "../../../shared/types";
-import { hexToHsl, hslToHex } from "../color";
+import { hexToHsl, hslToHex, mix } from "../color";
 
 export type Mood = NonNullable<Expression>;
 
@@ -27,8 +27,19 @@ export function featureColor(skin: string): string {
 const BLINK_PERIOD = 3.7;
 const BLINK_LENGTH = 0.13;
 
-/** 1 = eyes open, near 0 = mid-blink. */
-export const eyeOpen = (t: number) => (((t % BLINK_PERIOD) + BLINK_PERIOD) % BLINK_PERIOD < BLINK_LENGTH ? 0.15 : 1);
+/** Blink k happens near k * BLINK_PERIOD, nudged by up to 1.4 s so a blink never lands on a regular tick. */
+const blinkAt = (k: number) => (k === 0 ? 0 : k * BLINK_PERIOD + 1.4 * frac(Math.sin(k * 12.9898) * 43758.5453));
+const frac = (x: number) => x - Math.floor(x);
+
+/** 1 = eyes open, near 0 = mid-blink; the lids close and reopen smoothly. */
+export const eyeOpen = (t: number) => {
+  const k = Math.round(t / BLINK_PERIOD);
+  for (const n of [k - 1, k, k + 1]) {
+    const p = (t - blinkAt(n)) / BLINK_LENGTH;
+    if (n >= 0 && p >= 0 && p < 1) return 1 - 0.85 * Math.sin(Math.PI * p);
+  }
+  return 1;
+};
 
 type Props = {
   mood: Mood;
@@ -38,42 +49,65 @@ type Props = {
   r: number;
   color: string;
   t: number;
+  /** Skin color, for the cheeks; none are drawn without it. */
+  skin?: string;
+  /** Mouth opening 0..1 while singing; overrides the mood's mouth. */
+  open?: number;
 };
 
-/** A three-quarter face: two dot eyes shifted toward the facing side, and a mouth. */
-export const Face = ({ mood, cx, cy, r, color, t }: Props) => {
+/** A three-quarter face: eyes shifted toward the facing side, brows, cheeks and a mouth. */
+export const Face = ({ mood, cx, cy, r, color, t, skin, open: sing = 0 }: Props) => {
   const eyes = [cx - 0.22 * r, cx + 0.22 * r];
   const ey = cy - 0.05 * r;
   const my = cy + 0.38 * r;
   const w = 0.085 * r;
   const line = { stroke: color, strokeWidth: w, strokeLinecap: "round" as const, fill: "none" };
-  const open = eyeOpen(t);
+  const lid = eyeOpen(t);
 
-  const dots = (size: number) => eyes.map((x, i) => <ellipse key={i} cx={x} cy={ey} rx={size * r} ry={size * r * open} fill={color} />);
+  // The far eye is foreshortened.
+  const dots = (size: number) =>
+    eyes.map((x, i) => (
+      <g key={i}>
+        <ellipse cx={x} cy={ey} rx={size * r * (i === 0 ? 0.85 : 1)} ry={size * r * 1.35 * lid} fill={color} />
+        {lid > 0.5 && <circle cx={x + 0.025 * r} cy={ey - 0.035 * r} r={0.028 * r} fill="#ffffff" opacity={0.85} />}
+      </g>
+    ));
   const arcs = (up: boolean) =>
     eyes.map((x, i) => <path key={i} d={`M ${x - 0.1 * r} ${ey} Q ${x} ${ey + (up ? -0.13 : 0.13) * r} ${x + 0.1 * r} ${ey}`} {...line} />);
   // Brows slope toward the gap between the eyes: up there for sadness, down for resolve.
-  const brows = (innerUp: boolean) =>
+  const brows = (innerUp: boolean | null) =>
     eyes.map((x, i) => {
       const inner = i === 0 ? 1 : -1;
+      if (innerUp === null) return <path key={i} d={`M ${x - 0.11 * r} ${ey - 0.22 * r} Q ${x} ${ey - 0.29 * r} ${x + 0.11 * r} ${ey - 0.21 * r}`} {...line} strokeWidth={w * 0.8} />;
       const yIn = ey - (innerUp ? 0.25 : 0.12) * r;
       const yOut = ey - (innerUp ? 0.14 : 0.24) * r;
-      return <line key={i} x1={x + inner * 0.1 * r} y1={yIn} x2={x - inner * 0.1 * r} y2={yOut} {...line} />;
+      return <line key={i} x1={x + inner * 0.1 * r} y1={yIn} x2={x - inner * 0.1 * r} y2={yOut} {...line} strokeWidth={w * 1.15} />;
     });
+  const cheeks = (strength: number) =>
+    skin &&
+    [eyes[0] - 0.02 * r, eyes[1] + 0.04 * r].map((x, i) => <ellipse key={i} cx={x} cy={my - 0.1 * r} rx={0.11 * r} ry={0.065 * r} fill={mix(skin, "#e0556a", 0.55)} opacity={strength} />);
   const mouth = (curve: number, half = 0.13) => <path d={`M ${cx - half * r} ${my} Q ${cx} ${my + curve * r} ${cx + half * r} ${my}`} {...line} />;
+  // An open mouth: a dark D-shape with a tongue, for grins and for singing.
+  const gape = (half: number, depth: number) => (
+    <g>
+      <path d={`M ${cx - half * r} ${my - 0.02 * r} Q ${cx} ${my + 0.03 * r} ${cx + half * r} ${my - 0.02 * r} Q ${cx + half * 0.7 * r} ${my + depth * r} ${cx} ${my + depth * r} Q ${cx - half * 0.7 * r} ${my + depth * r} ${cx - half * r} ${my - 0.02 * r} Z`} fill={color} />
+      {depth > 0.12 && <ellipse cx={cx} cy={my + (depth - 0.035) * r} rx={half * 0.45 * r} ry={0.03 * r} fill="#d4686f" />}
+    </g>
+  );
+  const singing = sing > 0.08 ? gape(0.1 + 0.05 * sing, 0.04 + 0.17 * sing) : null;
 
   switch (mood) {
     case "happy":
-      return <g>{arcs(true)}{mouth(0.2, 0.17)}</g>;
+      return <g>{cheeks(0.5)}{arcs(true)}{brows(null)}{singing ?? gape(0.15, 0.11)}</g>;
     case "sad":
-      return <g>{dots(0.075)}{brows(true)}{mouth(-0.12)}</g>;
+      return <g>{dots(0.07)}{brows(true)}{singing ?? mouth(-0.12)}</g>;
     case "surprised":
-      return <g>{dots(0.1)}<ellipse cx={cx} cy={my + 0.02 * r} rx={0.07 * r} ry={0.1 * r} fill={color} /></g>;
+      return <g>{cheeks(0.3)}{dots(0.1)}{brows(null)}{singing ?? <ellipse cx={cx} cy={my + 0.02 * r} rx={0.07 * r} ry={0.1 * r} fill={color} />}</g>;
     case "calm":
-      return <g>{arcs(false)}{mouth(0.08, 0.1)}</g>;
+      return <g>{cheeks(0.35)}{arcs(false)}{singing ?? mouth(0.08, 0.1)}</g>;
     case "determined":
-      return <g>{dots(0.075)}{brows(false)}{mouth(0, 0.12)}</g>;
+      return <g>{dots(0.07)}{brows(false)}{singing ?? mouth(0, 0.12)}</g>;
     default:
-      return <g>{dots(0.08)}{mouth(0.03, 0.1)}</g>;
+      return <g>{cheeks(0.2)}{dots(0.075)}{brows(null)}{singing ?? mouth(0.03, 0.1)}</g>;
   }
 };

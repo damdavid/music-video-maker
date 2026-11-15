@@ -1,6 +1,7 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import { poseFor } from "./actions";
+import { mix } from "../color";
 import { eyeOpen, Face, featureColor } from "./face";
 import { Figure } from "./Figure";
 import { resolveScene } from "./normalize";
@@ -36,9 +37,10 @@ describe("expressions", () => {
   });
 
   it("the rig draws a face for cast members but not for silhouettes", () => {
-    const ink = featureColor(COLORS.body);
-    expect(figure({ mood: "happy", t: 1 })).toContain(ink);
-    expect(figure(undefined)).not.toContain(ink);
-    expect(figure({ mood: "happy", t: 1 }, "#222222")).not.toContain(ink);
+    // The outline shares the feature color, so the cheeks are what only a face draws.
+    const cheek = mix(COLORS.body, "#e0556a", 0.55);
+    expect(figure({ mood: "happy", t: 1 })).toContain(cheek);
+    expect(figure(undefined)).not.toContain(cheek);
+    expect(figure({ mood: "happy", t: 1 }, "#222222")).not.toContain(cheek);
   });
 });
