@@ -14,7 +14,7 @@ between a **lyric video** and a **visuals-only** video.
 
 - Node 22+, [uv](https://docs.astral.sh/uv/) (Python 3.12 is pinned), and `ffmpeg` (`brew install ffmpeg`)
 - An Anthropic API key for the Claude steps (style plan, storyboard, free-form art). Each user enters their own under **Claude API key** at the top right; it's kept in that browser's localStorage and sent only with Claude requests. The backend never reads `ANTHROPIC_API_KEY`, `ant auth login` or Claude Code's login
-- Disk: first use downloads Demucs `htdemucs` (~80 MB) and Whisper `small` (~460 MB) to `~/.cache`, and the first render downloads Remotion's headless Chrome
+- Disk: first use downloads Demucs `htdemucs` (~80 MB) and Whisper `medium` (~1.5 GB) to `~/.cache`, and the first render downloads Remotion's headless Chrome
 
 ## Setup and run
 
