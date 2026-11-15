@@ -2,7 +2,7 @@ import { Player } from "@remotion/player";
 import { Fragment, useCallback, useMemo, useRef, useState } from "react";
 import { MusicVideo } from "video/src/MusicVideo";
 import { videoSize } from "video/src/size";
-import type { AnalysisData, Lyrics, Meta, ProcessStatus, Settings, Storyboard, StyleEffort, StylePlan, VisualMode } from "../../shared/types";
+import type { AnalysisData, Lyrics, Meta, ProcessStatus, SectionsApplied, Settings, Storyboard, StyleEffort, StylePlan, VisualMode } from "../../shared/types";
 import {
   audioUrl,
   createProject,
@@ -14,6 +14,8 @@ import {
   getProject,
   getStoryboard,
   getStylePlan,
+  saveStoryboard,
+  saveStylePlan,
   listProjects,
   processStatus,
   saveProjectAs,
@@ -229,6 +231,19 @@ export function App() {
 
   const sections = analysis?.sections ?? [];
 
+  // Unsaved plan and storyboard edits are written first, so the re-indexing on the server starts from what's on screen.
+  const saveArtifacts = async () => {
+    if (!projectId) return;
+    if (plan) await saveStylePlan(projectId, plan);
+    if (storyboard) await saveStoryboard(projectId, storyboard);
+  };
+  const applySections = (applied: SectionsApplied) => {
+    setAnalysis((a) => a && { ...a, sections: applied.sections, sections_edited: true });
+    setSectionDescriptions(applied.section_descriptions);
+    if (applied.plan) setPlan(applied.plan);
+    if (applied.storyboard) setStoryboard(applied.storyboard);
+  };
+
   return (
     <main className="app">
       <header className="app-header">
@@ -284,7 +299,10 @@ export function App() {
       <DetailsForm meta={meta} settings={settings} onMeta={setMeta} onSettings={setSettings} />
       <div className="btn-row spaced">
         <button className="btn btn-primary" disabled={!file || busy} onClick={() => run(false)}>{projectId ? "Upload as new project" : "Analyze & align"}</button>
-        {projectId && <button className="btn btn-secondary" disabled={busy} onClick={() => run(true)}>Re-run analysis &amp; alignment</button>}
+        {projectId && <button className="btn btn-secondary" disabled={busy} onClick={() => {
+            if (analysis?.sections_edited && !window.confirm("Re-running analysis replaces the sections you edited. Continue?")) return;
+            run(true);
+          }}>Re-run analysis &amp; alignment</button>}
         {status}
       </div>
       {progress && busy && (
@@ -297,7 +315,7 @@ export function App() {
         <Fragment key={projectId}>
           <DebugView analysis={analysis} />
           {lyricsData && <LrcEditor projectId={projectId} audioSrc={audioSrc} analysis={analysis} lyrics={lyricsData} onChange={setLyricsData} />}
-          <SectionsPanel projectId={projectId} sections={sections} descriptions={sectionDescriptions} onChange={setSectionDescriptions} />
+          <SectionsPanel projectId={projectId} sections={sections} descriptions={sectionDescriptions} edited={analysis.sections_edited ?? false} beforeEdit={saveArtifacts} onChange={setSectionDescriptions} onApplied={applySections} />
           <div className="row spaced">
             <label>
               Opus 5.5 effort{" "}

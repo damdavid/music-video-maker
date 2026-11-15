@@ -18,7 +18,8 @@ from starlette.datastructures import Headers
 from starlette.types import ASGIApp, Receive, Scope, Send
 
 from app import illustrate, jobs, lrc, pipeline, projects_store, render
-from app.models import AnalysisData, Lyrics, Meta, ProcessStatus, Project, ProjectSummary, RenderStatus, Scene, Settings, Storyboard, StylePlan, StyleSection
+from app import sections as section_edits
+from app.models import AnalysisData, Lyrics, Meta, ProcessStatus, Project, ProjectSummary, RenderStatus, Scene, SectionEdit, SectionsApplied, Settings, Storyboard, StylePlan, StyleSection
 from app.projects_store import write_atomic
 from app.storyboard import generate_storyboard, regenerate_scene
 from app.style_plan import StyleError, generate_plan, regenerate_section
@@ -331,6 +332,36 @@ def get_analysis(project_id: str) -> AnalysisData:
     if analysis is None:
         raise HTTPException(404, "not analyzed yet")
     return analysis
+
+
+@app.put("/projects/{project_id}/sections", response_model_by_alias=True)
+def put_sections(project_id: str, edits: list[SectionEdit]) -> SectionsApplied:
+    """Replaces the song's sections. The style plan, storyboard and section descriptions are re-indexed to match."""
+    analysis = _analysis_or_409(project_id)
+    # Both jobs write files keyed by section index.
+    for kind in ("process", "illustrate"):
+        job = jobs.JOBS.get((project_id, kind))
+        if job and job.active:
+            raise HTTPException(409, "wait for the running job to finish before editing sections")
+    try:
+        sections = section_edits.validate(edits, analysis.duration, len(analysis.sections))
+    except ValueError as e:
+        raise HTTPException(422, str(e)) from e
+
+    plan = _optional_plan(project_id)
+    if plan:
+        plan = section_edits.remap_plan(plan, edits)
+        _write(project_id, "style_plan.json", plan, by_alias=True)
+    with illustrate.board_lock:
+        board = _optional_storyboard(project_id)
+        if board:
+            board = section_edits.remap_storyboard(board, edits)
+            _write(project_id, "storyboard.json", board)
+    with _editing(project_id) as project:
+        project.section_descriptions = section_edits.remap_descriptions(project.section_descriptions, edits)
+        descriptions = project.section_descriptions
+    _write(project_id, "analysis.json", analysis.model_copy(update={"sections": sections, "sections_edited": True}))
+    return SectionsApplied(sections=sections, section_descriptions=descriptions, plan=plan, storyboard=board)
 
 
 @app.get("/projects/{project_id}/lyrics")

@@ -257,6 +257,11 @@
           },
           "title": "Chroma",
           "type": "array"
+        },
+        "sections_edited": {
+          "default": false,
+          "title": "Sections Edited",
+          "type": "boolean"
         }
       },
       "required": [
@@ -1173,6 +1178,91 @@
         }
       },
       "title": "Storyboard",
+      "type": "object"
+    },
+    "SectionEdit": {
+      "description": "One section of the edited song timeline. Sections must tile the song: the first starts at 0, each starts where the last ends.",
+      "properties": {
+        "start": {
+          "title": "Start",
+          "type": "number"
+        },
+        "end": {
+          "title": "End",
+          "type": "number"
+        },
+        "label": {
+          "maxLength": 60,
+          "minLength": 1,
+          "title": "Label",
+          "type": "string"
+        },
+        "from_index": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "From Index"
+        }
+      },
+      "required": [
+        "start",
+        "end",
+        "label"
+      ],
+      "title": "SectionEdit",
+      "type": "object"
+    },
+    "SectionsApplied": {
+      "description": "The state that follows from a section edit, since the style plan, storyboard and descriptions are re-indexed with it.",
+      "properties": {
+        "sections": {
+          "items": {
+            "$ref": "#/$defs/Section"
+          },
+          "title": "Sections",
+          "type": "array"
+        },
+        "section_descriptions": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Section Descriptions",
+          "type": "array"
+        },
+        "plan": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/StylePlan"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "storyboard": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Storyboard"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "sections",
+        "section_descriptions"
+      ],
+      "title": "SectionsApplied",
       "type": "object"
     }
   }

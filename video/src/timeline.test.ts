@@ -29,6 +29,11 @@ describe("timeline", () => {
     expect(tl.boundaries.map((b) => b.cut)).toEqual([0, 10, 20]);
   });
 
+  it("leaves hand-edited sections exactly where they were put", () => {
+    const tl = buildTimeline(song({ sections_edited: true }), () => "crossfade");
+    expect(tl.boundaries.map((b) => b.cut)).toEqual([0, 10.2, 19.8]);
+  });
+
   it("prefers the beat a change is on over a downbeat that is a beat or more away", () => {
     expect(snapCut(song(), 11.05, 0, 20)).toBe(11);
     expect(snapCut(song(), 11.6, 0, 20)).toBe(11.5);
