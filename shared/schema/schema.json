@@ -100,6 +100,11 @@
           ],
           "title": "Visual Mode",
           "type": "string"
+        },
+        "auto_cuts": {
+          "default": true,
+          "title": "Auto Cuts",
+          "type": "boolean"
         }
       },
       "title": "Settings",

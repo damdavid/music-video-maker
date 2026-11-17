@@ -18,6 +18,7 @@ export type Resolution = "720p" | "1080p";
 export type Fps = number;
 export type StyleEffort = "low" | "medium" | "high" | "xhigh" | "max";
 export type VisualMode = "abstract" | "scenes" | "both";
+export type AutoCuts = boolean;
 export type Id = string;
 export type LyricsText = string;
 export type SectionDescriptions = string[];
@@ -251,6 +252,7 @@ export interface Settings {
   fps?: Fps;
   style_effort?: StyleEffort;
   visual_mode?: VisualMode;
+  auto_cuts?: AutoCuts;
 }
 /**
  * This interface was referenced by `Schema`'s JSON-Schema

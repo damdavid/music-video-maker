@@ -1,4 +1,5 @@
 import type { Action } from "../../../shared/types";
+import { easeOutBack } from "../easing";
 import { impulse, smooth, wobble } from "../motion";
 import { mulberry32 } from "../rng";
 import { SEG, type Pose } from "./rig";
@@ -257,6 +258,21 @@ const earlier = (c: ActionCtx, dt: number): ActionCtx => ({ ...c, t: c.t - dt, b
 
 const HAIR_STREAM: Partial<Record<Action, number>> = { walk: 5, run: 14 };
 
+/** How much each action feels the pulse of the music; dancing and jumping carry their own accents. */
+const GROOVE: Partial<Record<Action, number>> = { idle: 1, sit: 0.5, wave: 1, look_up: 0.5, reach: 0.6, slump: 0.25, walk: 0.5, run: 0.3 };
+
+/**
+ * A change in stretch around each beat: a squash just before it (anticipation), a quick stretch on it, and a small
+ * rebound after (overshoot). Scaled by loudness, so a quiet passage barely moves.
+ */
+export function accent(c: ActionCtx): number {
+  const phase = frac(c.beat);
+  const toNext = (1 - phase) * c.beatLen;
+  const since = phase * c.beatLen;
+  const squash = Math.exp(-((toNext / 0.09) ** 2));
+  return c.energy * (0.032 * impulse(since, 0.06) - 0.011 * impulse(since - 0.14, 0.08) - 0.02 * squash);
+}
+
 export function poseFor(action: Action, ctx: ActionCtx): Pose {
   const f = ACTIONS[action];
   const now = f(ctx);
@@ -272,9 +288,24 @@ export function poseFor(action: Action, ctx: ActionCtx): Pose {
   const hair = Math.max(-10, Math.min(30, 1.3 * turn + 40 * fall + (HAIR_STREAM[action] ?? 0) + 2 * own(ctx, 14, 0.4)));
   return {
     ...now,
+    stretch: (now.stretch ?? 1) + (GROOVE[action] ?? 0) * accent(ctx),
     head,
     armL: [upper.armL[0], lower.armL[1]],
     armR: [upper.armR[0], lower.armR[1]],
     hair,
   };
+}
+
+/** Seconds a figure takes to ease from standing into its action after it appears, and the delay between cast members. */
+export const ENTER_S = 0.7;
+export const ENTER_STAGGER = 0.12;
+
+/**
+ * The pose `since` seconds after a figure appears: it eases from standing into its action and overshoots a touch,
+ * so a scene opens with the cast coming to life instead of already mid-motion.
+ */
+export function poseWithEntrance(action: Action, ctx: ActionCtx, since: number): Pose {
+  const target = poseFor(action, ctx);
+  if (since >= ENTER_S || action === "idle") return target;
+  return lerpPose(poseFor("idle", ctx), target, easeOutBack(since / ENTER_S));
 }

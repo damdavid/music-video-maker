@@ -2,7 +2,7 @@ import pytest
 from pydantic import ValidationError
 
 from app import main, render
-from app.models import Character, CharacterColors, Project, Scene, SceneCharacter, Storyboard
+from app.models import Character, CharacterColors, Project, Scene, SceneCharacter, Settings, Storyboard
 from tests.client import make_client
 
 COLORS = {"body": "#d9a37e", "hair": "#2b1d14", "top": "#c0392b", "bottom": "#1f2a44", "accent": "#f1c40f"}
@@ -89,6 +89,15 @@ def test_build_props_carries_storyboard_and_visual_mode():
     props = render.build_props(Project(id="p"), _analysis(), None, None, board)
     assert props["storyboard"]["scenes"][0]["setting"] == "road" and props["settings"]["visual_mode"] == "abstract"
     assert render.build_props(Project(id="p"), _analysis(), None, None)["storyboard"] is None
+
+
+def test_auto_cuts_default_on_and_reach_the_renderer():
+    from tests.test_render import _analysis
+
+    assert Project(id="p").settings.auto_cuts is True
+    assert Project.model_validate({"id": "p", "settings": {"aspect": "9:16"}}).settings.auto_cuts is True  # projects saved before the setting
+    off = Project(id="p", settings=Settings(auto_cuts=False))
+    assert render.build_props(off, _analysis(), None, None)["settings"]["auto_cuts"] is False
 
 
 FIGURE = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 200"><g id="arm_r" data-pivot="55,60"><rect x="52" y="60" width="6" height="45" fill="#c33"/></g></svg>'

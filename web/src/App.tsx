@@ -343,6 +343,15 @@ export function App() {
                 ))}
               </select>
             </label>
+            <label title="Cut each scene into wide, medium and close shots on the downbeats. Off keeps one slowly pushing shot per scene.">
+              <input
+                type="checkbox"
+                checked={settings.auto_cuts ?? true}
+                disabled={(settings.visual_mode ?? "abstract") === "abstract"}
+                onChange={(e) => setSettings({ ...settings, auto_cuts: e.target.checked })}
+              />{" "}
+              Auto-cuts
+            </label>
             <button className="btn btn-primary" disabled={planBusy} onClick={makePlan}>
               {planBusy ? "Generating…" : plan ? "Regenerate style plan" : "Generate style plan"}
             </button>

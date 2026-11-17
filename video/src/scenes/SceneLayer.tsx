@@ -6,8 +6,9 @@ import { wobble } from "../motion";
 import { mulberry32 } from "../rng";
 import { beatPeriod } from "../timeline";
 import { beatPhase, beatPulse } from "../timing";
-import { groundSpeed, poseFor, type ActionCtx } from "./actions";
+import { ENTER_STAGGER, groundSpeed, poseWithEntrance, poseFor, type ActionCtx } from "./actions";
 import { Background, bleedOf } from "./backgrounds";
+import { MAX_ZOOM, type Framing } from "./direction";
 import { featureColor } from "./face";
 import { mouthOpen } from "./lip";
 import { Figure } from "./Figure";
@@ -35,6 +36,10 @@ type Props = {
   cam: CameraState;
   /** The lead character mouths these words. */
   lyrics: Lyrics | null;
+  /** Where the shot looks and how close; the section's own camera motion is applied on top. */
+  framing?: Framing;
+  /** When this scene appears; its cast eases into their actions from then. */
+  enterAt?: number;
 };
 
 const WIND: Record<Weather, number> = { clear: 0.15, fog: 0.05, rain: 0.6, snow: 0.4 };
@@ -47,7 +52,7 @@ const wrapX = (x: number, w: number, margin: number) => {
   return ((((x + margin) % span) + span) % span) - margin;
 };
 
-export const SceneLayer = ({ uid, scene, cast, objects, t, width: w, height: h, analysis, palette, seed, showSky, cam, lyrics }: Props) => {
+export const SceneLayer = ({ uid, scene, cast, objects, t, width: w, height: h, analysis, palette, seed, showSky, cam, lyrics, framing, enterAt }: Props) => {
   const c = sceneColors(palette, scene.time_of_day);
   const portrait = h > w;
   // A free-form backdrop is drawn with its ground line at 77% of the height in every aspect ratio (it is cropped, not squeezed).
@@ -73,8 +78,9 @@ export const SceneLayer = ({ uid, scene, cast, objects, t, width: w, height: h, 
   const speed = lead ? groundSpeed(lead.sc.action) * leadSize * (lead.sc.facing === "left" ? -1 : 1) : 0;
   const travel = speed * t;
 
-  const focus = { x: lead ? PLACEMENT_X[lead.sc.placement] * w : w / 2, y: gy - unit * 0.45 };
-  const layer = (depth: number) => depthTransform(cam, depth, w, h, focus);
+  const focus = framing ? { x: framing.aim.x * w, y: gy - framing.aim.h * leadSize } : { x: lead ? PLACEMENT_X[lead.sc.placement] * w : w / 2, y: gy - unit * 0.45 };
+  const camera = framing ? { ...cam, zoom: Math.min(cam.zoom * framing.zoom, MAX_ZOOM) } : cam;
+  const layer = (depth: number) => depthTransform(camera, depth, w, h, focus);
   const ground = layer(1);
 
   const crowd = useMemo(() => {
@@ -163,7 +169,7 @@ export const SceneLayer = ({ uid, scene, cast, objects, t, width: w, height: h, 
 
         {members.map(({ sc, ch }, i) => {
           const ft = t + i * 0.43;
-          const pose = poseFor(sc.action, ctx(ft, i));
+          const pose = enterAt === undefined ? poseFor(sc.action, ctx(ft, i)) : poseWithEntrance(sc.action, ctx(ft, i), t - enterAt - i * ENTER_STAGGER);
           const art = scene.illustration === "freeform" && ch.svg ? parseSafeSvgCached(ch.svg) : null;
           const x = PLACEMENT_X[sc.placement] * w;
           // A character without usable art is drawn with the library rig instead of disappearing.
