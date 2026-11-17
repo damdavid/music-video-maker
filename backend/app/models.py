@@ -52,6 +52,8 @@ class Settings(BaseModel):
     style_effort: Effort = "high"
     # abstract = audio-reactive graphics only; scenes = storyboard illustrations; both = scenes over the abstract visuals.
     visual_mode: VisualMode = "abstract"
+    # Scenes are cut into wide/medium/close shots on the downbeats; off keeps each scene to one slowly pushing shot.
+    auto_cuts: bool = True
 
 
 class Project(BaseModel):

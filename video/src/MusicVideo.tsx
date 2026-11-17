@@ -12,10 +12,11 @@ import { RisoRegistration, RisoTexture } from "./riso/RisoFinish";
 import { PRESETS } from "./presets";
 import { resolveParams } from "./presets/params";
 import { hashString } from "./rng";
-import { buildTimeline } from "./timeline";
+import { beatPeriod, buildTimeline } from "./timeline";
 import { beatPulse, clamp, visibleLines } from "./timing";
 import { transitionLayout } from "./transitions";
 import { LyricLayer, LyricScrim } from "./LyricLayer";
+import { barsPerShot, framingFor, holdFirstShot, planShots, type Shot } from "./scenes/direction";
 import { resolveCharacter, resolveObject, resolveScene, type ResolvedScene } from "./scenes/normalize";
 import { SceneLayer } from "./scenes/SceneLayer";
 import { TitleCard } from "./TitleCard";
@@ -40,6 +41,8 @@ type ResolvedSection = {
   palette: string[];
   params: Record<string, number>;
   scene: ResolvedScene | null;
+  /** How the lead's scene is cut into shots; empty when there is no scene. */
+  shots: Shot[];
 };
 
 export const MusicVideo = ({ analysis, lyrics, plan: planProp, storyboard, meta, settings, audioSrc }: MusicVideoProps) => {
@@ -47,6 +50,7 @@ export const MusicVideo = ({ analysis, lyrics, plan: planProp, storyboard, meta,
   const { fps, width, height, durationInFrames } = useVideoConfig();
   const t = frame / fps;
   const mode = settings.visual_mode ?? "abstract";
+  const autoCuts = settings.auto_cuts ?? true;
 
   // Everything that depends only on the props, worked out once instead of on every frame.
   const { plan, sections, timeline, cast, objects, seed, fontText } = useMemo(() => {
@@ -64,19 +68,30 @@ export const MusicVideo = ({ analysis, lyrics, plan: planProp, storyboard, meta,
         palette: shiftPalette(safePalette(style.palette_override, globalPalette), style.palette_shift ?? 0),
         params: resolveParams(style.visual_preset, style.preset_params),
         scene: sceneData ? resolveScene(sceneData, storyboard?.illustration ?? "library") : null,
+        shots: [],
       };
     });
     const timed = analysis.sections.length ? analysis : { ...analysis, sections: [{ start: 0, end: analysis.duration, label: "all" }] };
+    const timeline = buildTimeline(timed, (i) => sections[i].style.transition_in ?? "crossfade");
+    const seed = hashString(`${meta.title}|${meta.artist}|${analysis.duration}`);
+    // Shots follow the cuts the timeline actually makes, which may sit a little off the detected section edges.
+    sections.forEach((s, i) => {
+      const lead = s.scene?.characters[0];
+      if (!lead) return;
+      const span = { start: timeline.boundaries[i].cut, end: timeline.boundaries[i + 1]?.cut ?? timed.duration };
+      const shots = planShots(span, analysis.downbeats, beatPeriod(timed) * 4, barsPerShot(s.style.intensity), lead.action, seed, i);
+      s.shots = autoCuts ? shots : holdFirstShot(shots);
+    });
     return {
       plan,
       sections,
-      timeline: buildTimeline(timed, (i) => sections[i].style.transition_in ?? "crossfade"),
+      timeline,
       cast: (storyboard?.cast ?? []).map(resolveCharacter),
       objects: (storyboard?.objects ?? []).map(resolveObject),
-      seed: hashString(`${meta.title}|${meta.artist}|${analysis.duration}`),
+      seed,
       fontText: [meta.title, meta.artist, ...(lyrics?.lines ?? []).map((l) => l.text)].join(" "),
     };
-  }, [analysis, planProp, storyboard, mode, meta.title, meta.artist, lyrics]);
+  }, [analysis, planProp, storyboard, mode, autoCuts, meta.title, meta.artist, lyrics]);
 
   const fontFamily = useGoogleFont(plan.global.font_family, fontText);
   const bounds = analysis.sections;
@@ -114,6 +129,8 @@ export const MusicVideo = ({ analysis, lyrics, plan: planProp, storyboard, meta,
     const cam = camFor(i);
     // A section with no scene falls back to the abstract visuals rather than rendering blank.
     const showAbstract = mode !== "scenes" || !scene;
+    const lead = scene?.characters[0];
+    const framing = lead && sections[i].shots.length ? framingFor({ t, shots: sections[i].shots, action: lead.action, placement: lead.placement, lyrics }) : undefined;
     return (
       <>
         {showAbstract && (
@@ -121,7 +138,7 @@ export const MusicVideo = ({ analysis, lyrics, plan: planProp, storyboard, meta,
             <Preset uid={`p${i}`} frame={seriesFrame(analysis, t)} t={t} width={width} height={height} analysis={analysis} palette={pal} intensity={s.intensity} seed={seed} params={params} />
           </Camera>
         )}
-        {scene && <SceneLayer uid={`sc${i}`} scene={scene} cast={cast} objects={objects} t={t} width={width} height={height} analysis={analysis} palette={pal} seed={seed} showSky={mode === "scenes"} cam={cam} lyrics={lyrics} />}
+        {scene && <SceneLayer uid={`sc${i}`} scene={scene} cast={cast} objects={objects} t={t} width={width} height={height} analysis={analysis} palette={pal} seed={seed} showSky={mode === "scenes"} cam={cam} lyrics={lyrics} framing={framing} enterAt={timeline.boundaries[i].start} />}
       </>
     );
   };

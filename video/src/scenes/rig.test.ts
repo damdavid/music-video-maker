@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { Action } from "../../../shared/types";
 import { beatPhase } from "../timing";
-import { groundSpeed, poseFor, type ActionCtx } from "./actions";
+import { accent, ENTER_S, groundSpeed, poseFor, poseWithEntrance, type ActionCtx } from "./actions";
 import { layout, SEG } from "./rig";
 
 const ACTIONS: Action[] = ["idle", "walk", "run", "sit", "wave", "look_up", "reach", "dance", "jump", "slump"];
@@ -152,5 +152,41 @@ describe("actions", () => {
     expect(w.handR.y).toBeLessThan(w.shoulder.y);
     expect(poseFor("slump", ctx(0)).head).toBeGreaterThan(20);
     expect(poseFor("look_up", ctx(0)).head).toBeLessThan(-10);
+  });
+});
+
+describe("beat accent", () => {
+  it("squashes before a beat, stretches on it, and stays small and smooth", () => {
+    const at = (beat: number) => accent({ ...ctx(0), beat, beatLen: 0.5, energy: 1 });
+    expect(at(0.93)).toBeLessThan(0);
+    expect(at(0.12)).toBeGreaterThan(0.02);
+    const samples = Array.from({ length: 400 }, (_, i) => at(i / 100));
+    expect(Math.max(...samples)).toBeLessThan(0.04);
+    expect(Math.min(...samples)).toBeGreaterThan(-0.04);
+    for (let i = 1; i < samples.length; i++) expect(Math.abs(samples[i] - samples[i - 1])).toBeLessThan(0.03);
+  });
+
+  it("is silent when the music is", () => {
+    expect(accent({ ...ctx(0), beat: 0.12, beatLen: 0.5, energy: 0 })).toBe(0);
+  });
+
+  it("keeps stretch near 1 for every action", () => {
+    for (const action of ACTIONS) for (const t of times) expect(Math.abs((poseFor(action, ctx(t, 1)).stretch ?? 1) - 1)).toBeLessThan(0.12);
+  });
+});
+
+describe("entrance", () => {
+  it("starts standing, ends on the action, and never leaves the ground wrongly", () => {
+    for (const action of ["walk", "run", "dance", "sit", "wave", "reach", "slump"] as const) {
+      const c = ctx(3);
+      expect(poseWithEntrance(action, c, -1)).toEqual(poseFor("idle", c));
+      expect(poseWithEntrance(action, c, ENTER_S)).toEqual(poseFor(action, c));
+      for (let since = 0; since < ENTER_S; since += 0.05) {
+        const p = poseWithEntrance(action, c, since);
+        const j = layout(p);
+        expect(Math.max(j.ankleL.y, j.ankleR.y)).toBeCloseTo(p.y, 6);
+        for (const pt of Object.values(j)) if (typeof pt !== "number") expect(Number.isFinite(pt.x) && Number.isFinite(pt.y)).toBe(true);
+      }
+    }
   });
 });
