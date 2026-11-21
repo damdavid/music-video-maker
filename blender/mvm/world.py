@@ -19,6 +19,8 @@ TIME_OF_DAY = {
 }
 # Power of the soft key light on the camera per time of day (scaled with the shot distance).
 FILL = {"dawn": 140.0, "day": 40.0, "dusk": 160.0, "night": 320.0}
+# How much of the sun gets through the cloud.
+OVERCAST = {"clear": 1.0, "fog": 0.55, "rain": 0.3, "snow": 0.45}
 FOG = {"clear": 0.0, "fog": 0.012, "rain": 0.003, "snow": 0.002}
 
 
@@ -82,13 +84,13 @@ def tree(name: str, loc, rng: random.Random, tint: str = "#2f5d34", scale: float
 
 # ---------------------------------------------------------------------------- settings
 
-def _road(origin, rng, lit: bool, width: float = 9.0):
+def _road(origin, rng, lit: bool, width: float = 9.0, weather: str = "clear"):
     ox, oy, _ = origin
     out = []
-    asphalt = materials.textured("asphalt", "#1d1e20", "#35363a", 18, 0.78, 0.35, 12)
+    asphalt = materials.ground("asphalt", "#1d1e20", "#35363a", 18, 0.78, 0.35, 12, weather if weather != "snow" else "clear")
     out.append(plane("road", (ox, oy, 0.0), (500, width), asphalt))
-    out.append(plane("verge-a", (ox, oy + width / 2 + 3.5, -0.02), (500, 7), materials.textured("grass", "#243a1d", "#47652f", 9, 0.95, 0.7)))
-    out.append(plane("verge-b", (ox, oy - width / 2 - 3.5, -0.02), (500, 7), materials.textured("grass", "#243a1d", "#47652f", 9, 0.95, 0.7)))
+    out.append(plane("verge-a", (ox, oy + width / 2 + 3.5, -0.02), (500, 7), materials.ground("grass", "#243a1d", "#47652f", 9, 0.95, 0.7, 8, weather)))
+    out.append(plane("verge-b", (ox, oy - width / 2 - 3.5, -0.02), (500, 7), materials.ground("grass", "#243a1d", "#47652f", 9, 0.95, 0.7, 8, weather)))
     line = materials.principled("roadline", "#e8e3d0", 0.6)
     for k in range(-80, 80):
         out.append(plane(f"dash{k}", (ox + k * 6.0, oy, 0.005), (2.6, 0.18), line))
@@ -112,18 +114,18 @@ def _lamps(origin, spacing: float, count: int, lit: bool, y_off: float, color=(1
     return out
 
 
-def build_road(origin, tod, rng):
+def build_road(origin, tod, rng, weather: str = "clear"):
     lit = tod in ("night", "dusk", "dawn")
-    out = _road(origin, rng, lit) + _lamps(origin, 16.0, 7, lit, 6.0)
+    out = _road(origin, rng, lit, 9.0, weather) + _lamps(origin, 16.0, 7, lit, 6.0)
     for k in range(7):
         out += tree(f"rt{k}", (origin[0] + rng.uniform(-90, 90), origin[1] - rng.uniform(11, 24), 0), rng, scale=rng.uniform(0.8, 1.2))
     return out
 
 
-def build_city(origin, tod, rng):
+def build_city(origin, tod, rng, weather: str = "clear"):
     ox, oy, _ = origin
     lit = tod in ("night", "dusk", "dawn")
-    out = _road(origin, rng, lit, 12.0) + _lamps(origin, 18.0, 7, lit, 8.0)
+    out = _road(origin, rng, lit, 12.0, weather) + _lamps(origin, 18.0, 7, lit, 8.0)
     wall = {"night": "#1a2230", "dusk": "#4a3f4a", "dawn": "#5b5560", "day": "#8c8b8a"}[tod]
     for sign in (1, -1):
         x = ox - 130
@@ -137,9 +139,9 @@ def build_city(origin, tod, rng):
     return out
 
 
-def build_field(origin, tod, rng):
+def build_field(origin, tod, rng, weather: str = "clear"):
     ox, oy, _ = origin
-    out = [plane("field", (ox, oy, 0.0), (700, 700), materials.textured("meadow", "#27441a", "#52792a", 7, 0.95, 0.9, 10))]
+    out = [plane("field", (ox, oy, 0.0), (700, 700), materials.ground("meadow", "#27441a", "#52792a", 7, 0.95, 0.9, 10, weather))]
     fence = materials.principled("fence", "#6b5640", 0.9)
     for k in range(-40, 40):
         out.append(box(f"post{k}", (ox + k * 3.0, oy + 9, 0.55), (0.12, 0.12, 1.1), fence))
@@ -152,7 +154,7 @@ def build_field(origin, tod, rng):
     return out
 
 
-def build_room(origin, tod, rng):
+def build_room(origin, tod, rng, weather: str = "clear"):
     ox, oy, _ = origin
     wallm = materials.principled("wall", "#d8d0c4", 0.9)
     out = [
@@ -186,9 +188,9 @@ def build_room(origin, tod, rng):
     return out
 
 
-def build_shore(origin, tod, rng):
+def build_shore(origin, tod, rng, weather: str = "clear"):
     ox, oy, _ = origin
-    out = [plane("sand", (ox, oy, 0.0), (600, 40), materials.textured("sand", "#b99f6b", "#dccb9d", 30, 0.95, 0.35, 6))]
+    out = [plane("sand", (ox, oy, 0.0), (600, 40), materials.ground("sand", "#b99f6b", "#dccb9d", 30, 0.95, 0.35, 6, weather))]
     sea = plane("sea", (ox, oy + 230, -0.3), (700, 400), materials.principled("sea", "#12384f", 0.06, 0.0, specular=0.8))
     sea.data.materials[0].node_tree.nodes["Principled BSDF"].inputs["Coat Weight"].default_value = 0.5
     bpy.ops.object.shade_smooth()
@@ -198,9 +200,9 @@ def build_shore(origin, tod, rng):
     return out
 
 
-def build_forest(origin, tod, rng):
+def build_forest(origin, tod, rng, weather: str = "clear"):
     ox, oy, _ = origin
-    out = [plane("forest-floor", (ox, oy, 0.0), (500, 500), materials.textured("loam", "#2b2a19", "#4f4a2a", 14, 0.95, 0.8, 10))]
+    out = [plane("forest-floor", (ox, oy, 0.0), (500, 500), materials.ground("loam", "#2b2a19", "#4f4a2a", 14, 0.95, 0.8, 10, weather))]
     for k in range(90):
         x, y = ox + rng.uniform(-120, 120), oy + rng.uniform(-30, 70)
         if abs(y - oy) < 2.5:
@@ -209,7 +211,7 @@ def build_forest(origin, tod, rng):
     return out
 
 
-def build_void(origin, tod, rng):
+def build_void(origin, tod, rng, weather: str = "clear"):
     ox, oy, _ = origin
     out = [plane("stage", (ox, oy, 0.0), (400, 400), materials.principled("void-floor", "#17181f", 0.18, 0.05, specular=0.8))]
     bpy.ops.object.light_add(type="AREA", location=(ox, oy - 1.0, 7.0))
@@ -229,12 +231,12 @@ def build_void(origin, tod, rng):
 EARTH = dict(road=("#243a1d", "#47652f"), city=("#2b2b2e", "#4a4a50"), field=("#27441a", "#52792a"), shore=("#b99f6b", "#dccb9d"), forest=("#2b2a19", "#4f4a2a"))
 
 
-def build_earth(origin, setting: str):
+def build_earth(origin, setting: str, weather: str = "clear"):
     """Ground out to the horizon, so there is never sky below it."""
     if setting not in EARTH:
         return []
     c1, c2 = EARTH[setting]
-    return [plane("earth", (origin[0], origin[1], -0.06), (6000, 6000), materials.textured(f"earth-{setting}", c1, c2, 3, 0.95, 0.5, 6))]
+    return [plane("earth", (origin[0], origin[1], -0.06), (6000, 6000), materials.ground(f"earth-{setting}", c1, c2, 3, 0.95, 0.5, 6, weather))]
 
 
 SETTINGS = dict(road=build_road, city=build_city, field=build_field, room=build_room, shore=build_shore, forest=build_forest, void=build_void)
@@ -261,11 +263,16 @@ def build_prop(kind: str, origin, x: float, rng):
     return []
 
 
-def build_weather(origin, weather: str):
-    """Fog, and the haze of rain and snow, as a box of volume around the stage."""
+def build_weather(origin, weather: str, camera=None, seed: int = 1):
+    """Fog, and the haze of rain and snow, as a box of volume around the stage; rain and snow fall as real drops."""
+    from . import weather as precipitation
+
+    objs = []
+    if weather in precipitation.KIND and camera is not None:
+        objs += precipitation.build(weather, origin, camera, seed)
     density = FOG[weather]
     if density <= 0:
-        return []
+        return objs
     bpy.ops.mesh.primitive_cube_add(location=(origin[0], origin[1], 30.0))
     box_ = bpy.context.active_object
     box_.name = "atmosphere"
@@ -283,7 +290,7 @@ def build_weather(origin, weather: str):
     out = nt.nodes.new("ShaderNodeOutputMaterial")
     nt.links.new(vol.outputs["Volume"], out.inputs["Volume"])
     box_.data.materials.append(mat)
-    return [box_]
+    return objs + [box_]
 
 
 # ---------------------------------------------------------------------------- sky and weather
@@ -325,11 +332,11 @@ class Sky:
         self.sky.sun_rotation = rot
         self.sky.keyframe_insert("sun_elevation", frame=frame)
         self.sky.keyframe_insert("sun_rotation", frame=frame)
-        self.bg.inputs["Strength"].default_value = p["sky"]
+        self.bg.inputs["Strength"].default_value = p["sky"] * (0.55 + 0.45 * OVERCAST[weather])
         self.bg.inputs["Strength"].keyframe_insert("default_value", frame=frame)
         # The sun lamp points where the sky's sun is.
         self.sun.rotation_euler = (math.pi / 2 - elev, 0.0, rot - math.pi)
-        self.sun.data.energy = p["sun"]
+        self.sun.data.energy = p["sun"] * OVERCAST[weather]
         self.sun.data.color = p["color"]
         self.moon.data.energy = p["moon"]
         for prop, obj in (("rotation_euler", self.sun), ("energy", self.sun.data), ("color", self.sun.data), ("energy", self.moon.data)):

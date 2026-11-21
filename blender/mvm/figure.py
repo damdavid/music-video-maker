@@ -5,12 +5,13 @@ torso, limbs and neck bend smoothly at the joints instead of being separate piec
 """
 
 import math
+import zlib
 
 import bmesh
 import bpy
 from mathutils import Euler, Vector
 
-from . import body, materials
+from . import body, hairgen, materials
 from .body import ANKLE, HIP_X, HIP_Z, REST_Z, SHIN, SHOULDER_X, SHOULDER_Z, THIGH, UPPER_ARM, FORE_ARM, TORSO_LEN, NECK_LEN
 from .motion import Pose, stance_height
 
@@ -105,7 +106,7 @@ class Figure:
         bottom = materials.principled(f"{name}-bottom", colors["bottom"], 0.8)
         shoe = materials.principled(f"{name}-shoe", colors["accent"], 0.45)
         sole = materials.principled(f"{name}-sole", "#1b1b1d", 0.7)
-        hair_mat = materials.principled(f"{name}-hair", colors["hair"], 0.38, specular=0.6)
+        hair_mat = materials.hair(f"{name}-hair", colors["hair"])
         dark = materials.principled(f"{name}-feature", "#120c0a", 0.3)
         white = materials.principled(f"{name}-eyewhite", "#f1efe9", 0.18)
         iris = materials.principled(f"{name}-iris", "#4a2f1d" if colors.get("hair", "#2b1d14") < "#555555" else "#4d6b86", 0.2)
@@ -275,16 +276,19 @@ class Figure:
         self.lip_rest = (0.0302 * H, 0.0006 * H)
 
     def _hair_and_clothes(self, hair: str, outfit: str, top, hair_mat, colors: dict, H: float) -> None:
-        if hair in ("short", "long", "bun"):
-            blob(f"{self.name}-hair", self.head, (0.0525 * H, 0.0645 * H, 0.0505 * H), (0, 0.011 * H, 0.1045 * H), hair_mat)
-            blob(f"{self.name}-fringe", self.head, (0.046 * H, 0.02 * H, 0.012 * H), (0, -0.036 * H, 0.131 * H), hair_mat, rot=(math.radians(-18), 0, 0))
-            blob(f"{self.name}-crest", self.head, (0.04 * H, 0.052 * H, 0.016 * H), (0, 0.0 * H, 0.15 * H), hair_mat)
-            for sx in (-1, 1):
-                blob(f"{self.name}-sideburn", self.head, (0.007 * H, 0.018 * H, 0.026 * H), (sx * 0.0475 * H, 0.0 * H, 0.087 * H), hair_mat)
-        if hair == "long":
-            blob(f"{self.name}-hairlong", self.hair_p, (0.052 * H, 0.03 * H, 0.14 * H), (0, 0.012 * H, -0.12 * H), hair_mat)
-        if hair == "bun":
-            blob(f"{self.name}-bun", self.head, (0.03 * H, 0.03 * H, 0.03 * H), (0, 0.045 * H, 0.155 * H), hair_mat)
+        self.hair_swing = 0.0
+        if hair in ("short", "long", "bun", "hat"):
+            # A hat sits over short hair, which shows at the sides and back.
+            style = "short" if hair == "hat" else hair
+            strands = hairgen.generate(style, zlib.crc32(self.name.encode()))
+            if style == "long":
+                self.hair_swing = 0.4  # the roots are near the pivot, so the whole mass swings only gently
+                self._locks("hair", strands, self.hair_p, hair_mat, H, hairgen.PIVOT)
+            else:
+                self._locks("hair", strands, self.head, hair_mat, H, (0.0, 0.0, 0.0))
+            if style == "bun":
+                c = hairgen.BUN_CENTRE
+                blob(f"{self.name}-bun", self.head, (0.03 * H, 0.03 * H, 0.027 * H), (c[0] * H, c[1] * H, c[2] * H), hair_mat)
         if hair == "hat":
             accent = materials.principled(f"{self.name}-hat", colors["accent"], 0.7)
             blob(f"{self.name}-brim", self.head, (0.085 * H, 0.085 * H, 0.0045 * H), (0, -0.004 * H, 0.115 * H), accent)
@@ -304,6 +308,24 @@ class Figure:
             panel = _mesh_object(f"{self.name}-skirt", bm, [top], self.pelvis)
             self.skirt = panel
 
+    def _locks(self, name: str, strands, parent, mat, H: float, origin) -> None:
+        """Hair as one curve object: each strand a tapered tube, positioned relative to `origin` in the parent's frame."""
+        curve = bpy.data.curves.new(f"{self.name}-{name}", "CURVE")
+        curve.dimensions = "3D"
+        curve.bevel_depth = 1.0  # each point's radius scales this, so tubes taper along their length
+        curve.bevel_resolution = 0
+        curve.use_fill_caps = True
+        for strand in strands:
+            sp = curve.splines.new("POLY")
+            sp.points.add(len(strand) - 1)
+            for pt, (x, y, z, r) in zip(sp.points, strand):
+                pt.co = ((x - origin[0]) * H, (y - origin[1]) * H, (z - origin[2]) * H, 1.0)
+                pt.radius = r * H
+        curve.materials.append(mat)
+        obj = bpy.data.objects.new(f"{self.name}-{name}", curve)
+        bpy.context.scene.collection.objects.link(obj)
+        obj.parent = parent  # a pivot parent's own origin is already `origin`, so the points are relative to it
+
     # ------------------------------------------------------------------ posing
 
     def _rotate_bone(self, name: str, euler_deg) -> None:
@@ -322,7 +344,7 @@ class Figure:
         self.pelvis.rotation_euler = (0.0, 0.0, d(p.yaw))
         self.spine.rotation_euler = (d(p.lean), 0.0, d(p.twist))
         self.head.rotation_euler = (d(p.head), d(p.side), 0.0)
-        self.hair_p.rotation_euler = (d(p.hair), 0.0, 0.0)
+        self.hair_p.rotation_euler = (d(p.hair * self.hair_swing), 0.0, 0.0)
         pelvis = self.arm.pose.bones["pelvis"]
         self._rotate_bone("pelvis", (0.0, 0.0, p.yaw))
         pelvis.location = self.rest["pelvis"].inverted() @ Vector((0.0, 0.0, dz))

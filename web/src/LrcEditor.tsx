@@ -5,7 +5,7 @@ import type { AnalysisData, Lyrics } from "../../shared/types";
 import { errorMessage, importLrc, lrcUrl, saveLyrics } from "./api";
 import { useAlive } from "./jobs";
 import { nudge, setLineTimes, tapLine, updateLine } from "./lyricsOps";
-import { fmtTime } from "./time";
+import { fmtClock, fmtTime } from "./time";
 
 type Props = { projectId: string; audioSrc: string; analysis: AnalysisData; lyrics: Lyrics; onChange: (l: Lyrics) => void };
 
@@ -151,7 +151,7 @@ export function LrcEditor({ projectId, audioSrc, analysis, lyrics, onChange }: P
       <ol className="lines" role="listbox" aria-label="Lyric lines">
         {lyrics.lines.map((l, i) => (
           <li key={i} role="option" aria-selected={i === selected} onClick={() => setSelected(i)} className={i === selected ? "selected" : undefined}>
-            <code>{l.start.toFixed(2)}</code> {l.text}
+            <code>{fmtClock(l.start)}</code> {l.text}
             {l.words?.some((w) => w.low_confidence) && <span title="low-confidence words"> ⚠</span>}
           </li>
         ))}

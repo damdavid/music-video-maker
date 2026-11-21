@@ -76,6 +76,16 @@ def textured(name: str, c1: str, c2: str, scale: float = 6.0, roughness: float =
     return mat
 
 
+def ground(name: str, c1: str, c2: str, scale: float, roughness: float, bump: float, detail: float, weather: str = "clear"):
+    """`textured`, wet and darker in rain, and white under snow."""
+    if weather == "rain":
+        dark = lambda h: "#%02x%02x%02x" % tuple(int(int(h.lstrip("#")[i : i + 2], 16) * 0.62) for i in (0, 2, 4))
+        return textured(f"{name}-wet", dark(c1), dark(c2), scale, min(roughness, 0.22), bump * 0.6, detail)
+    if weather == "snow":
+        return textured(f"{name}-snow", "#cfd9e6", "#f3f6fa", scale * 0.7, 0.85, 0.55, detail)
+    return textured(name, c1, c2, scale, roughness, bump, detail)
+
+
 def windows(name: str, wall: str, lit: str, density: float = 0.45, seed: float = 1.0):
     """A building face: dark glass in a grid of panes, a random share of them lit from within."""
     mat = bpy.data.materials.get(name)
@@ -138,4 +148,35 @@ def windows(name: str, wall: str, lit: str, density: float = 0.45, seed: float =
     links.new(mix.outputs["Color"], bsdf.inputs["Base Color"])
     bsdf.inputs["Emission Color"].default_value = _rgba(lit)
     bsdf.inputs["Roughness"].default_value = 0.35
+    return mat
+
+
+def hair(name: str, color: str):
+    """Hair: glossy, with the colour varying a little from lock to lock so a head of it doesn't read as one flat plastic."""
+    mat = bpy.data.materials.get(name)
+    if mat:
+        return mat
+    mat = bpy.data.materials.new(name)
+    mat.use_nodes = True
+    nodes, links = mat.node_tree.nodes, mat.node_tree.links
+    bsdf = nodes["Principled BSDF"]
+    coord = nodes.new("ShaderNodeTexCoord")
+    noise = nodes.new("ShaderNodeTexNoise")
+    noise.inputs["Scale"].default_value = 140.0
+    noise.inputs["Detail"].default_value = 1.0
+    ramp = nodes.new("ShaderNodeValToRGB")
+    ramp.color_ramp.elements[0].color = (0.55, 0.55, 0.55, 1)
+    ramp.color_ramp.elements[1].color = (1.25, 1.25, 1.25, 1)
+    mix = nodes.new("ShaderNodeMixRGB")
+    mix.blend_type = "MULTIPLY"
+    mix.inputs["Fac"].default_value = 1.0
+    mix.inputs["Color1"].default_value = _rgba(color)
+    links.new(coord.outputs["Object"], noise.inputs["Vector"])
+    links.new(noise.outputs["Fac"], ramp.inputs["Fac"])
+    links.new(ramp.outputs["Color"], mix.inputs["Color2"])
+    links.new(mix.outputs["Color"], bsdf.inputs["Base Color"])
+    bsdf.inputs["Roughness"].default_value = 0.34
+    bsdf.inputs["Coat Weight"].default_value = 0.25
+    bsdf.inputs["Coat Roughness"].default_value = 0.25
+    bsdf.inputs["Specular IOR Level"].default_value = 0.7
     return mat

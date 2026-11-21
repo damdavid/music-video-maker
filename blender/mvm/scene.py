@@ -88,9 +88,9 @@ def build(props: dict, seconds: float | None, emit):
         sceneinfo = {}
 
         def make():
-            world.build_earth(origin, setting)
-            world.build_weather(origin, weather)
-            world.SETTINGS[setting](origin, tod, rng)
+            world.build_earth(origin, setting, weather)
+            world.build_weather(origin, weather, cam.obj, seed + i)
+            world.SETTINGS[setting](origin, tod, rng, weather)
             for pi, kind in enumerate(sc.get("props") or []):
                 world.build_prop(kind, origin, (-4.0, 0.0, 4.0, 8.0)[pi % 4], rng)
             members = []
