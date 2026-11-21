@@ -1,3 +1,4 @@
+import copy
 from collections.abc import Callable
 from pathlib import Path
 
@@ -10,6 +11,9 @@ MODEL = "medium"
 LOW_CONFIDENCE = 0.5
 
 REFINING = "refining timings"
+# Refining nudges edges to where words are heard; a longer word, or a bigger move, means it went wrong.
+MAX_REFINED_WORD_S = 20.0
+MAX_REFINED_SHIFT_S = 1.5
 
 _model = None
 
@@ -22,6 +26,18 @@ def _get_model():
     return _model
 
 
+def _keep_sane(refined, before) -> None:
+    """Puts back any word whose refined time is impossible, or has moved further than refining could really mean."""
+    old = [w for seg in before.segments for w in seg.words]
+    new = [w for seg in refined.segments for w in seg.words]
+    if len(old) != len(new):
+        return
+    limit = max((w.end for w in old), default=0.0) + 2.0
+    for was, now in zip(old, new):
+        if now.start < 0 or now.end < now.start or now.end > limit or now.end - now.start > MAX_REFINED_WORD_S or abs(now.start - was.start) > MAX_REFINED_SHIFT_S:
+            now.start, now.end = was.start, was.end
+
+
 def align(audio: Path, lyrics_text: str, language: str = "en", on_stage: Callable[[str], None] | None = None) -> Lyrics:
     text = "\n".join(line.strip() for line in lyrics_text.splitlines() if line.strip())
     # original_split keeps the user's line breaks as the segment boundaries.
@@ -32,7 +48,9 @@ def align(audio: Path, lyrics_text: str, language: str = "en", on_stage: Callabl
             on_stage(REFINING)
         # Alignment places a word as soon as the model is confident of it; refining mutes the audio around each edge and
         # moves it to where the word is actually heard. Slow (about 14x the alignment itself on CPU).
+        before = copy.deepcopy(result)
         model.refine(str(audio), result)
+        _keep_sane(result, before)
     lines = []
     for seg in result.segments:
         words = [

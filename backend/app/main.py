@@ -18,7 +18,7 @@ from starlette.datastructures import Headers
 from starlette.types import ASGIApp, Receive, Scope, Send
 
 from app import illustrate, jobs, lrc, pipeline, projects_store, render
-from app import sections as section_edits
+from app import lyrics_repair, sections as section_edits
 from app.models import AnalysisData, Lyrics, Meta, ProcessStatus, Project, ProjectSummary, RenderStatus, Scene, SectionEdit, SectionsApplied, Settings, Storyboard, StylePlan, StyleSection
 from app.projects_store import write_atomic
 from app.storyboard import generate_storyboard, regenerate_scene
@@ -366,14 +366,20 @@ def put_sections(project_id: str, edits: list[SectionEdit]) -> SectionsApplied:
 
 @app.get("/projects/{project_id}/lyrics")
 def get_lyrics(project_id: str) -> Lyrics:
-    lyrics = _read(project_id, "lyrics.json", Lyrics)
+    lyrics = _optional_lyrics(project_id)
     if lyrics is None:
         raise HTTPException(404, "not aligned yet")
     return lyrics
 
 
+def _song_length(project_id: str) -> float | None:
+    analysis = _read(project_id, "analysis.json", AnalysisData)
+    return analysis.duration if analysis else None
+
+
 @app.put("/projects/{project_id}/lyrics")
 def put_lyrics(project_id: str, lyrics: Lyrics) -> Lyrics:
+    lyrics = lyrics_repair.repair(lyrics, _song_length(project_id))
     _write(project_id, "lyrics.json", lyrics)
     return lyrics
 
@@ -390,7 +396,9 @@ def import_lrc(project_id: str, body: str = Body(media_type="text/plain")) -> Ly
 
 
 def _optional_lyrics(project_id: str) -> Lyrics | None:
-    return _read(project_id, "lyrics.json", Lyrics)
+    """The saved lyrics, with any impossible time repaired, so a corrupt file can't make lines vanish from a video."""
+    lyrics = _read(project_id, "lyrics.json", Lyrics)
+    return lyrics_repair.repair(lyrics, _song_length(project_id)) if lyrics else None
 
 
 def _optional_plan(project_id: str) -> StylePlan | None:

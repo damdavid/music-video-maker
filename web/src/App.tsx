@@ -1,4 +1,4 @@
-import { Player } from "@remotion/player";
+import { Player, type PlayerRef } from "@remotion/player";
 import { Fragment, useCallback, useMemo, useRef, useState } from "react";
 import { MusicVideo } from "video/src/MusicVideo";
 import { videoSize } from "video/src/size";
@@ -231,6 +231,10 @@ export function App() {
 
   const sections = analysis?.sections ?? [];
 
+  // The player has its own playhead, so a lyric edit only shows if the player is looking at that moment.
+  const playerRef = useRef<PlayerRef>(null);
+  const showAt = useCallback((seconds: number) => playerRef.current?.seekTo(Math.max(0, Math.round(seconds * fps))), [fps]);
+
   // Unsaved plan and storyboard edits are written first, so the re-indexing on the server starts from what's on screen.
   const saveArtifacts = async () => {
     if (!projectId) return;
@@ -314,7 +318,7 @@ export function App() {
       {analysis && projectId && (
         <Fragment key={projectId}>
           <DebugView analysis={analysis} />
-          {lyricsData && <LrcEditor projectId={projectId} audioSrc={audioSrc} analysis={analysis} lyrics={lyricsData} onChange={setLyricsData} />}
+          {lyricsData && <LrcEditor projectId={projectId} audioSrc={audioSrc} analysis={analysis} lyrics={lyricsData} onChange={setLyricsData} onShow={showAt} />}
           <SectionsPanel projectId={projectId} sections={sections} descriptions={sectionDescriptions} edited={analysis.sections_edited ?? false} beforeEdit={saveArtifacts} onChange={setSectionDescriptions} onApplied={applySections} />
           <div className="row spaced">
             <label>
@@ -362,6 +366,7 @@ export function App() {
           <StoryboardEditor projectId={projectId} board={storyboard} sections={sections} sectionDescriptions={sectionDescriptions} onChange={setStoryboard} />
           {inputProps && (
             <Player
+              ref={playerRef}
               component={MusicVideo}
               inputProps={inputProps}
               durationInFrames={Math.ceil(analysis.duration * fps)}

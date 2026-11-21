@@ -34,3 +34,22 @@ def test_skips_refining_when_nothing_was_aligned(monkeypatch):
 
     monkeypatch.setattr(alignment, "_get_model", lambda: SimpleNamespace(align=lambda *a, **kw: SimpleNamespace(segments=[SimpleNamespace(words=[])]), refine=refine))
     assert alignment.align("vocals.wav", "words").lines == []
+
+
+def test_refinement_that_goes_wrong_is_undone_word_by_word(monkeypatch):
+    def word(text, start, end):
+        return SimpleNamespace(start=start, end=end, word=f" {text}", probability=0.9)
+
+    seg = SimpleNamespace(words=[word("sane", 1.0, 1.8), word("wild", 2.0, 2.6), word("far", 3.0, 3.5), word("held", 4.0, 5.0)])
+
+    def refine(audio, result):
+        a, b, c, d = result.segments[0].words
+        a.end = 1.4  # a normal refinement: kept
+        b.end = 9362.0  # impossible: undone
+        c.start = 9.0  # moved further than refining could mean: undone
+        d.end = 4.0  # a held word collapsed to nothing is allowed (it is still a valid time)
+
+    monkeypatch.setattr(alignment, "_get_model", lambda: SimpleNamespace(align=lambda *a, **kw: SimpleNamespace(segments=[seg]), refine=refine))
+    (line,) = alignment.align("vocals.wav", "sane wild far held").lines
+    times = [(w.text, w.start, w.end) for w in line.words]
+    assert times == [("sane", 1.0, 1.4), ("wild", 2.0, 2.6), ("far", 3.0, 3.5), ("held", 4.0, 4.0)]
