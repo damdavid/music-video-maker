@@ -372,7 +372,7 @@ export function App() {
               style={PLAYER_STYLE}
             />
           )}
-          <ExportPanel projectId={projectId} />
+          <ExportPanel projectId={projectId} renderer={settings.renderer ?? "remotion"} />
         </Fragment>
       )}
 

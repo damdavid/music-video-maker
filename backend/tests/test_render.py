@@ -55,7 +55,7 @@ def api(tmp_path, monkeypatch):
 def _use_script(monkeypatch, tmp_path, source):
     script = tmp_path / "fake_render.py"
     script.write_text(source)
-    monkeypatch.setattr(render, "render_command", lambda props, out, seconds: [sys.executable, str(script), "--props", str(props), "--out", str(out)] + (["--seconds", str(seconds)] if seconds else []))
+    monkeypatch.setattr(render, "render_command", lambda props, out, seconds, renderer="remotion": [sys.executable, str(script), "--props", str(props), "--out", str(out)] + (["--seconds", str(seconds)] if seconds else []))
 
 
 def test_build_props_respects_lyric_toggle_and_audio_url():

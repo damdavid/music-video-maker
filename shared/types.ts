@@ -19,6 +19,7 @@ export type Fps = number;
 export type StyleEffort = "low" | "medium" | "high" | "xhigh" | "max";
 export type VisualMode = "abstract" | "scenes" | "both";
 export type AutoCuts = boolean;
+export type Renderer = "remotion" | "blender";
 export type Id = string;
 export type LyricsText = string;
 export type SectionDescriptions = string[];
@@ -253,6 +254,7 @@ export interface Settings {
   style_effort?: StyleEffort;
   visual_mode?: VisualMode;
   auto_cuts?: AutoCuts;
+  renderer?: Renderer;
 }
 /**
  * This interface was referenced by `Schema`'s JSON-Schema

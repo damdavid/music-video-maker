@@ -58,6 +58,13 @@ export function DetailsForm({ meta, settings, onMeta, onSettings }: Props) {
             <option>1080p</option>
           </select>
         </label>
+        <label title="Remotion: the flat 2D look, with the live preview below. Blender: realistic 3D, rendered only when you export, and much slower.">
+          Renderer{" "}
+          <select value={settings.renderer ?? "remotion"} onChange={(e) => onSettings({ ...settings, renderer: e.target.value as Settings["renderer"] })}>
+            <option value="remotion">Remotion (2D, live preview)</option>
+            <option value="blender">Blender (realistic 3D)</option>
+          </select>
+        </label>
         <label>
           <input type="checkbox" checked={settings.lyric_video} onChange={(e) => onSettings({ ...settings, lyric_video: e.target.checked })} /> Lyric video (show lyrics on screen)
         </label>

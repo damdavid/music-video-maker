@@ -1,4 +1,4 @@
-"""Runs video/render.mjs (Remotion) as a background job and tracks its progress."""
+"""Runs a renderer (Remotion via video/render.mjs, or Blender via blender/render.py) as a background job and tracks its progress."""
 
 import json
 import os
@@ -12,6 +12,8 @@ from app import jobs
 from app.models import AnalysisData, Lyrics, Project, RenderStatus, Storyboard, StylePlan
 
 VIDEO_DIR = Path(__file__).resolve().parents[2] / "video"
+BLENDER_DIR = Path(__file__).resolve().parents[2] / "blender"
+MAC_BLENDER = "/Applications/Blender.app/Contents/MacOS/Blender"
 # Headless Chrome fetches the audio from here, so it must be the backend's own address, not the Vite proxy's.
 BACKEND_URL = os.environ.get("MUSIC_VIDEO_MAKER_BACKEND_URL", "http://127.0.0.1:8000")
 ERROR_TAIL_LINES = 12
@@ -61,11 +63,21 @@ def build_props(
     }
 
 
-def render_command(props_path: Path, out: Path, seconds: float | None) -> list[str]:
-    node = shutil.which("node")
-    if not node:
-        raise RuntimeError("node is not on PATH; it is required to render video")
-    cmd = [node, str(VIDEO_DIR / "render.mjs"), "--props", str(props_path), "--out", str(out)]
+def find_blender() -> str | None:
+    return os.environ.get("MUSIC_VIDEO_MAKER_BLENDER") or shutil.which("blender") or (MAC_BLENDER if Path(MAC_BLENDER).exists() else None)
+
+
+def render_command(props_path: Path, out: Path, seconds: float | None, renderer: str = "remotion") -> list[str]:
+    if renderer == "blender":
+        blender = find_blender()
+        if not blender:
+            raise RuntimeError("Blender was not found; install it (brew install --cask blender) or set MUSIC_VIDEO_MAKER_BLENDER")
+        cmd = [blender, "-b", "--factory-startup", "--python", str(BLENDER_DIR / "render.py"), "--", "--props", str(props_path), "--out", str(out)]
+    else:
+        node = shutil.which("node")
+        if not node:
+            raise RuntimeError("node is not on PATH; it is required to render video")
+        cmd = [node, str(VIDEO_DIR / "render.mjs"), "--props", str(props_path), "--out", str(out)]
     return cmd + ["--seconds", str(seconds)] if seconds else cmd
 
 
@@ -88,8 +100,13 @@ def _run(job: RenderJob, props: dict, seconds: float | None) -> None:
     try:
         props_path.write_text(json.dumps(props))
         with log_path.open("w") as log:
+            renderer = props.get("settings", {}).get("renderer", "remotion")
             proc = subprocess.Popen(
-                render_command(props_path, job.output, seconds), cwd=VIDEO_DIR, stdout=subprocess.PIPE, stderr=log, text=True
+                render_command(props_path, job.output, seconds, renderer),
+                cwd=BLENDER_DIR if renderer == "blender" else VIDEO_DIR,
+                stdout=subprocess.PIPE,
+                stderr=log,
+                text=True,
             )
             assert proc.stdout is not None
             for line in proc.stdout:

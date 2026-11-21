@@ -1,12 +1,12 @@
 import { useEffect, useRef, useState } from "react";
-import type { RenderStatus } from "../../shared/types";
+import type { RenderStatus, Settings } from "../../shared/types";
 import { errorMessage, renderStatus, startRender, videoUrl } from "./api";
 import { pollJob } from "./jobs";
 
 const POLL_MS = 1000;
 const CLIP_SECONDS = 15;
 
-export function ExportPanel({ projectId }: { projectId: string }) {
+export function ExportPanel({ projectId, renderer }: { projectId: string; renderer: Settings["renderer"] }) {
   const [status, setStatus] = useState<RenderStatus | null>(null);
   const [error, setError] = useState("");
   // Each follow() bumps this, so a newer poll (or unmount) retires the older one.
@@ -44,6 +44,11 @@ export function ExportPanel({ projectId }: { projectId: string }) {
   return (
     <section className="panel">
       <h2>Export</h2>
+      {renderer === "blender" && (
+        <p className="hint">
+          Rendering with Blender (realistic 3D). The preview above is still the Remotion look; Blender renders only here. A full render takes much longer than the preview clip, so check the clip first.
+        </p>
+      )}
       <div className="btn-row spaced">
         <button className="btn btn-primary" disabled={busy} onClick={() => start()}>Render MP4</button>
         <button className="btn btn-secondary" disabled={busy} onClick={() => start(CLIP_SECONDS)}>Render {CLIP_SECONDS}s preview</button>
