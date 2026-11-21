@@ -15,6 +15,7 @@ FONT_CANDIDATES = (
     "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
 )
 DEPTH = 3.0  # metres in front of the camera the text is laid out at (rescaled per frame to the focus distance)
+TEXT_MAX_M = 3.5  # the furthest the text is hung from the camera, so a wide shot's lower third is not below the ground
 REF_LENS = 42.0  # the lens the layout is designed for; other lenses rescale the text so it keeps its size on screen
 SENSOR = 36.0
 SIZE = 0.15
@@ -120,4 +121,69 @@ def build(scene, cam_obj, lines: list[dict], fps: int, palette: tuple[str, str],
             for frame, hidden in ((0, True), (int(start_f) - 2, False), (int(fade[3]) + 2, True)):
                 obj.hide_render = hidden
                 obj.keyframe_insert("hide_render", frame=max(frame, 0))
+    return anchor
+
+
+
+def fade_material(name: str, color: str, fade: tuple[float, float, float, float]):
+    """Emission that fades in over frames a0..a1, holds, and fades out over b0..b1."""
+    mat = bpy.data.materials.new(name)
+    mat.use_nodes = True
+    nt = mat.node_tree
+    nt.nodes.clear()
+    em = nt.nodes.new("ShaderNodeEmission")
+    em.inputs["Strength"].default_value = 4.0
+    em.inputs["Color"].default_value = materials._rgba(color)
+    tr = nt.nodes.new("ShaderNodeBsdfTransparent")
+    mix = nt.nodes.new("ShaderNodeMixShader")
+    out = nt.nodes.new("ShaderNodeOutputMaterial")
+    nt.links.new(tr.outputs[0], mix.inputs[1])
+    nt.links.new(em.outputs[0], mix.inputs[2])
+    nt.links.new(mix.outputs[0], out.inputs["Surface"])
+    mat.surface_render_method = "BLENDED"
+    a0, a1, b0, b1 = fade
+    for frame, value in ((a0 - 1, 0.0), (a0, 0.0), (a1, 1.0), (b0, 1.0), (b1, 0.0), (b1 + 1, 0.0)):
+        mix.inputs["Fac"].default_value = value
+        mix.inputs["Fac"].keyframe_insert("default_value", frame=frame)
+    return mat
+
+
+def build_title(scene, cam_obj, title: str, artist: str, window_s: float, fps: int, palette: tuple[str, str], size: tuple[int, int]):
+    """The song title and artist, centred in front of the camera, fading in and out over `window_s` seconds."""
+    anchor = bpy.data.objects.new("title-anchor", None)
+    scene.collection.objects.link(anchor)
+    anchor.parent = cam_obj
+    font = _font()
+    half_w, half_h = frame_extent(*size)
+    end = window_s * fps
+    fade_len = min(0.9, window_s / 3) * fps
+    fade = (0.0, fade_len, end - fade_len, end)
+    base, accent = palette
+    made = []
+    for text, text_size, y, color in ((title, SIZE * 1.9, half_h * 0.12, base), (artist, SIZE * 0.85, -half_h * 0.2, accent)):
+        if not text.strip():
+            continue
+        curve = bpy.data.curves.new("title-text", "FONT")
+        curve.body = text
+        curve.size = text_size
+        curve.extrude = 0.004
+        curve.align_x = "CENTER"
+        curve.align_y = "CENTER"
+        if font:
+            curve.font = font
+        obj = bpy.data.objects.new("title-text", curve)
+        scene.collection.objects.link(obj)
+        obj.parent = anchor
+        obj.location = (0.0, y, -DEPTH)
+        curve.materials.append(fade_material(f"title-{len(made)}", color, fade))
+        made.append(obj)
+    bpy.context.view_layer.update()
+    max_width = half_w * 1.7
+    for obj in made:
+        if obj.dimensions.x > max_width:
+            obj.scale = (max_width / obj.dimensions.x,) * 3  # a long title shrinks to fit the frame
+        obj.hide_render = False
+        obj.keyframe_insert("hide_render", frame=0)
+        obj.hide_render = True
+        obj.keyframe_insert("hide_render", frame=int(end) + 2)
     return anchor

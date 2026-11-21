@@ -8,21 +8,40 @@ import { clamp, fadeEnvelope } from "./timing";
 
 const CARD_S = 4;
 
-type Props = { meta: Meta; t: number; duration: number; palette: string[]; fontFamily: string; /** Write the title with a pen instead of setting it in type. */ handwritten?: boolean };
+type Props = {
+  meta: Meta;
+  t: number;
+  duration: number;
+  palette: string[];
+  fontFamily: string;
+  /** Write the title with a pen instead of setting it in type. */
+  handwritten?: boolean;
+  /** Seconds the opening card holds (default 4); a lyric video holds it through the intro and has no closing card. */
+  openFor?: number;
+  closing?: boolean;
+};
 
-export const TitleCard = ({ meta, t, duration, palette, fontFamily, handwritten = false }: Props) => {
+/** The card's fade at time t and how far into its own window it is, or null when it is not showing. */
+export function cardPhase(t: number, duration: number, openFor: number, closing: boolean): { opacity: number; local: number; window: number } | null {
+  if (t < openFor) return { opacity: fadeEnvelope(t, 0, openFor, Math.min(0.9, openFor / 3)), local: t, window: openFor };
+  if (closing && t > duration - CARD_S) return { opacity: fadeEnvelope(t, duration - CARD_S, duration, 0.9), local: t - (duration - CARD_S), window: CARD_S };
+  return null;
+}
+
+export const TitleCard = ({ meta, t, duration, palette, fontFamily, handwritten = false, openFor = CARD_S, closing = true }: Props) => {
   const { width, height } = useVideoConfig();
-  const opening = t < CARD_S;
-  const closing = t > duration - CARD_S;
-  if ((!opening && !closing) || (!meta.title && !meta.artist)) return null;
-  const opacity = opening ? fadeEnvelope(t, 0, CARD_S, 0.9) : fadeEnvelope(t, duration - CARD_S, duration, 0.9);
+  const phase = cardPhase(t, duration, openFor, closing);
+  if (!phase || (!meta.title && !meta.artist)) return null;
+  const { opacity, window } = phase;
+  // The pen is paced for a 4 s card; a shorter one writes faster so it finishes before the fade.
+  const pace = Math.min(1, window / CARD_S);
   const unit = Math.min(width, height);
   const halo = hexToHsl(background(palette)).l > 55 ? "242,237,227" : "0,0,0";
-  const local = opening ? t : t - (duration - CARD_S);
+  const local = phase.local;
   const write = (text: string, size: number, from: number, over: number, weight: number) =>
     handwritten && canWrite(text) ? (
       <div style={{ display: "flex", justifyContent: "center", opacity: weight }}>
-        <StrokeWriting text={text} progress={easeInOutSine(clamp((local - from) / over))} size={size * 1.4} color={foreground(palette)} ink2={{ color: brightestAccent(palette), dx: size * 0.03, dy: size * 0.02 }} />
+        <StrokeWriting text={text} progress={easeInOutSine(clamp((local - from * pace) / (over * pace)))} size={size * 1.4} color={foreground(palette)} ink2={{ color: brightestAccent(palette), dx: size * 0.03, dy: size * 0.02 }} />
       </div>
     ) : null;
   return (

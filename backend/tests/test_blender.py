@@ -14,6 +14,12 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "blender"))
 from mvm import body, hairgen, motion, timing  # noqa: E402
 
 
+def test_the_title_card_is_on_by_default_including_for_projects_saved_before_it_existed():
+    assert Project(id="p").settings.title_card is True
+    assert Project.model_validate({"id": "p", "settings": {"aspect": "9:16"}}).settings.title_card is True
+    assert Settings(title_card=False).title_card is False
+
+
 def test_renderer_defaults_to_remotion_and_is_stored_per_project():
     assert Project(id="p").settings.renderer == "remotion"
     assert Project.model_validate({"id": "p", "settings": {"aspect": "9:16"}}).settings.renderer == "remotion"  # saved before the setting
@@ -87,6 +93,13 @@ class TestTiming:
         assert timing.mouth_open(lines, 1.5) > 0.5 and timing.mouth_open(lines, 0.2) == 0 and timing.mouth_open(lines, 5) == 0
         opens = [timing.eye_open(i / 30) for i in range(300)]
         assert min(opens) < 0.3 and sum(o < 1 for o in opens) < 30
+
+    def test_the_title_holds_through_the_intro_and_leaves_before_the_first_lyric(self):
+        line = lambda start: [{"start": start, "end": start + 3}]
+        assert timing.title_window(line(6)) == pytest.approx(timing.appear_times(line(6))[0] - 0.1)
+        assert timing.title_window(line(60)) == timing.TITLE_CAP_S
+        assert timing.title_window(line(1)) == 0 and timing.title_window(line(2)) == 0  # no room for it
+        assert timing.title_window([]) == timing.TITLE_NO_LYRICS_S
 
     def test_video_size_matches_the_remotion_side(self):
         assert timing.video_size({"aspect": "16:9", "resolution": "720p"}) == (1280, 720)
