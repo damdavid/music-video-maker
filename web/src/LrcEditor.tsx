@@ -4,20 +4,32 @@ import RegionsPlugin from "wavesurfer.js/dist/plugins/regions.esm.js";
 import type { AnalysisData, Lyrics } from "../../shared/types";
 import { errorMessage, importLrc, lrcUrl, saveLyrics } from "./api";
 import { useAlive } from "./jobs";
-import { nudge, setLineTimes, tapLine, updateLine } from "./lyricsOps";
+import { nudge, setLineTimes, setWordStart, tapLine, updateLine } from "./lyricsOps";
 import { fmtClock, fmtTime } from "./time";
 
-type Props = { projectId: string; audioSrc: string; analysis: AnalysisData; lyrics: Lyrics; onChange: (l: Lyrics) => void };
+type Props = {
+  projectId: string;
+  audioSrc: string;
+  analysis: AnalysisData;
+  lyrics: Lyrics;
+  onChange: (l: Lyrics) => void;
+  /** Moves the video preview to a moment, so the edit just made is what it is showing. */
+  onShow?: (seconds: number) => void;
+};
 
 const NUDGE = 0.01;
+// The preview is shown this long into the edited word or line, so it has appeared and settled.
+const SHOW_AFTER = 0.3;
 
-export function LrcEditor({ projectId, audioSrc, analysis, lyrics, onChange }: Props) {
+export function LrcEditor({ projectId, audioSrc, analysis, lyrics, onChange, onShow }: Props) {
   const container = useRef<HTMLDivElement>(null);
   const panel = useRef<HTMLElement>(null);
   const ws = useRef<WaveSurfer | null>(null);
   const regions = useRef<ReturnType<typeof RegionsPlugin.create> | null>(null);
   const lyricsRef = useRef(lyrics);
   lyricsRef.current = lyrics;
+  const showRef = useRef(onShow);
+  showRef.current = onShow;
   const alive = useAlive();
   const [rawSelected, setSelected] = useState(0);
   const [tap, setTap] = useState(false);
@@ -37,6 +49,7 @@ export function LrcEditor({ projectId, audioSrc, analysis, lyrics, onChange }: P
       const line = lyricsRef.current.lines[i];
       if (!line) return;
       onChange(updateLine(lyricsRef.current, i, setLineTimes(line, r.start, r.end)));
+      showRef.current?.(r.start + SHOW_AFTER);
     });
     plugin.on("region-clicked", (r, e) => {
       // Section/downbeat regions cover the waveform; letting their clicks through is what seeks.
@@ -80,6 +93,7 @@ export function LrcEditor({ projectId, audioSrc, analysis, lyrics, onChange }: P
       e.preventDefault();
       if (tap && wave.isPlaying()) {
         onChange(tapLine(lyrics, selected, wave.getCurrentTime()));
+        onShow?.(wave.getCurrentTime() + SHOW_AFTER);
         setSelected(Math.min(selected + 1, lastLine));
       } else wave.playPause();
     } else if (e.code === "ArrowLeft" || e.code === "ArrowRight") {
@@ -87,6 +101,7 @@ export function LrcEditor({ projectId, audioSrc, analysis, lyrics, onChange }: P
       const d = e.code === "ArrowLeft" ? -NUDGE : NUDGE;
       // Shift moves only the start edge.
       onChange(updateLine(lyrics, selected, e.shiftKey ? nudge(line, d, 0) : nudge(line, d, d)));
+      onShow?.(line.start + d + SHOW_AFTER);
     } else if (e.code === "ArrowUp") {
       e.preventDefault();
       setSelected(Math.max(selected - 1, 0));
@@ -147,10 +162,15 @@ export function LrcEditor({ projectId, audioSrc, analysis, lyrics, onChange }: P
           Tap-to-sync (Space while playing sets the start of the selected line)
         </label>
       </div>
-      <small className="hint">Click the waveform or drag the slider to seek · Click here first, then: ↑/↓ select line · Enter play from line · ←/→ nudge 10 ms (Shift: start only) · drag/resize regions</small>
+      <small className="hint">Click the waveform or drag the slider to seek · Click here first, then: ↑/↓ select line · Enter play from line · ←/→ nudge 10 ms (Shift: start only) · drag/resize regions · the video preview below jumps to whatever you edit</small>
       <ol className="lines" role="listbox" aria-label="Lyric lines">
         {lyrics.lines.map((l, i) => (
-          <li key={i} role="option" aria-selected={i === selected} onClick={() => setSelected(i)} className={i === selected ? "selected" : undefined}>
+          <li key={i} role="option" aria-selected={i === selected} onClick={() => {
+              setSelected(i);
+              onShow?.(l.start + SHOW_AFTER);
+            }}
+            className={i === selected ? "selected" : undefined}
+          >
             <code>{fmtClock(l.start)}</code> {l.text}
             {l.words?.some((w) => w.low_confidence) && <span title="low-confidence words"> ⚠</span>}
           </li>
@@ -172,8 +192,8 @@ export function LrcEditor({ projectId, audioSrc, analysis, lyrics, onChange }: P
                     const start = e.target.valueAsNumber;
                     // Clearing the field mid-edit would otherwise jump the word to 0.
                     if (Number.isNaN(start)) return;
-                    const words = line.words!.map((x, j) => (j === wi ? { ...x, start, end: Math.max(x.end, start) } : x));
-                    onChange(updateLine(lyrics, selected, { ...line, words }));
+                    onChange(updateLine(lyrics, selected, setWordStart(line, wi, start)));
+                    onShow?.(start + SHOW_AFTER);
                   }}
                 />
               </label>
@@ -187,7 +207,9 @@ export function LrcEditor({ projectId, audioSrc, analysis, lyrics, onChange }: P
           onClick={async () => {
             setStatus("Saving…");
             try {
-              await saveLyrics(projectId, lyrics);
+              // The server repairs any time that can't be right and sends back what it kept.
+              const saved = await saveLyrics(projectId, lyrics);
+              if (alive.current) onChange(saved);
               setStatus("Saved");
             } catch (e) {
               setStatus(`Save failed: ${errorMessage(e)}`);
