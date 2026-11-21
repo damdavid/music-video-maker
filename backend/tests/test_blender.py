@@ -11,7 +11,7 @@ from app.models import Project, Settings
 from tests.client import make_client
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "blender"))
-from mvm import body, motion, timing  # noqa: E402
+from mvm import body, hairgen, motion, timing  # noqa: E402
 
 
 def test_renderer_defaults_to_remotion_and_is_stored_per_project():
@@ -159,3 +159,56 @@ class TestBody:
     def test_bone_blending_goes_from_one_bone_to_the_next_across_a_joint(self):
         assert body.blend(-0.1, -0.01, 0.05) == 1 and body.blend(0.1, -0.01, 0.05) == 0
         assert 0.4 < body.blend(-0.01, -0.01, 0.05) < 0.6
+
+
+class TestHair:
+    def points(self, style, seed=3):
+        return [p for strand in hairgen.generate(style, seed) for p in strand]
+
+    def skull_distance(self, p):
+        return math.sqrt(sum(((p[i] - hairgen.C[i]) / hairgen.R[i]) ** 2 for i in range(3)))
+
+    @pytest.mark.parametrize("style", ["short", "long", "bun"])
+    def test_every_strand_is_a_tapering_tube_with_finite_points(self, style):
+        for strand in hairgen.generate(style, 3):
+            assert len(strand) >= 8
+            radii = [p[3] for p in strand]
+            assert all(all(math.isfinite(v) for v in p) for p in strand)
+            assert radii[-1] < radii[0] * 0.5 and all(a >= b for a, b in zip(radii, radii[1:]))
+
+    @pytest.mark.parametrize("style", ["short", "long", "bun"])
+    def test_hair_sits_on_the_scalp_not_inside_the_head(self, style):
+        crown = [p for p in self.points(style) if p[2] > 0.04]
+        assert min(self.skull_distance(p) for p in crown) > 0.96
+
+    def test_long_hair_keeps_off_the_face_and_out_of_the_shoulders(self):
+        pts = self.points("long")
+        assert not [p for p in pts if p[1] < -0.03 and 0.02 < p[2] < 0.106 and abs(p[0]) < 0.036]
+        for x, y, z, _ in pts:
+            if z < 0:
+                rx, ry = hairgen.torso_radii(z)
+                assert (x / rx) ** 2 + (y / ry) ** 2 > 0.9
+
+    def test_long_hair_hangs_well_below_the_chin_and_short_hair_does_not(self):
+        assert min(p[2] for p in self.points("long")) < -0.12
+        assert min(p[2] for p in self.points("short")) > 0.0  # ends above the chin
+
+    def test_hair_grows_only_inside_the_hairline(self):
+        starts = [s[0] for s in hairgen.generate("short", 3)]
+        assert all(p[2] > 0.1 for p in starts if p[1] < -0.04)  # above the brows at the front
+        assert all(p[2] > 0.0 for p in starts)
+
+    def test_bun_locks_wind_in_around_the_bun(self):
+        ends = [s[-1] for s in hairgen.generate("bun", 3)]
+        near = [e for e in ends if math.dist(e[:3], hairgen.BUN_CENTRE) < 0.045]
+        assert len(near) > 0.7 * len(ends)
+
+    def test_hair_is_deterministic_per_seed(self):
+        assert hairgen.generate("long", 5) == hairgen.generate("long", 5)
+        assert hairgen.generate("long", 5) != hairgen.generate("long", 6)
+
+
+class TestWeather:
+    def test_rain_and_snow_are_defined_with_sane_physics(self):
+        weather = pytest.importorskip("mvm.weather", reason="needs bpy")  # imports bpy at module level
+        assert weather.KIND["rain"]["speed"] > weather.KIND["snow"]["speed"] > 0
