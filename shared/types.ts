@@ -21,6 +21,7 @@ export type VisualMode = "abstract" | "scenes" | "both";
 export type AutoCuts = boolean;
 export type Renderer = "remotion" | "blender";
 export type TitleCard = boolean;
+export type LyricFade = "hard" | "normal" | "gentle";
 export type Id = string;
 export type LyricsText = string;
 export type SectionDescriptions = string[];
@@ -258,6 +259,7 @@ export interface Settings {
   auto_cuts?: AutoCuts;
   renderer?: Renderer;
   title_card?: TitleCard;
+  lyric_fade?: LyricFade;
 }
 /**
  * This interface was referenced by `Schema`'s JSON-Schema

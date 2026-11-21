@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { accent, hexToHsl, hslToHex, mixPalettes, safePalette, shiftPalette } from "./color";
 import { mulberry32 } from "./rng";
 import { videoSize } from "./size";
-import { activeLineIndex, appearTimes, beatPhase, TITLE_CAP_S, titleWindow, beatPulse, fadeEnvelope, normalizeWord, sectionIndexAt, visibleLines, wordStates } from "./timing";
+import { activeLineIndex, appearTimes, beatPhase, FADES, TITLE_CAP_S, titleWindow, beatPulse, fadeEnvelope, normalizeWord, sectionIndexAt, visibleLines, wordStates } from "./timing";
 
 const lyrics = {
   lines: [
@@ -197,6 +197,34 @@ describe("palettes", () => {
     expect(mixPalettes(["#000000", "#ffffff"], ["#ff0000", "#00ff00"], 0)).toEqual(["#000000", "#ffffff"]);
     expect(mixPalettes(["#000000", "#ffffff"], ["#ff0000", "#00ff00"], 1)).toEqual(["#ff0000", "#00ff00"]);
     expect(mixPalettes(["#000000", "#ffffff"], ["#000000", "#808080", "#ffffff"], 0.5)).toEqual(["#000000", "#808080", "#ffffff"]);
+  });
+});
+
+describe("lyric fade presets", () => {
+  const board = { lines: [{ start: 10, end: 12, text: "first line" }, { start: 12, end: 14, text: "second line" }] };
+  // The second line takes over at 11.85 (a 0.15 s lead-in); how far the first has cleared a little after.
+  const cleared = (fade: "hard" | "normal" | "gentle", dt: number) => visibleLines(board, 11.85 + dt, () => true, fade).find((l) => l.index === 0)?.exit ?? 1;
+
+  it("gets slower from hard to gentle", () => {
+    expect(FADES.hard.handoff).toBeLessThan(FADES.normal.handoff);
+    expect(FADES.normal.handoff).toBeLessThan(FADES.gentle.handoff);
+    expect(cleared("hard", 0.1)).toBeCloseTo(1, 6);
+    expect(cleared("normal", 0.1)).toBeGreaterThan(0.4);
+    expect(cleared("gentle", 0.1)).toBeLessThan(0.3);
+  });
+
+  it("always finishes clearing the old line, and never flickers the new one out", () => {
+    for (const fade of ["hard", "normal", "gentle"] as const) {
+      expect(cleared(fade, 0.6)).toBeCloseTo(1, 6);
+      for (let t = 10.2; t < 13.5; t += 0.01) expect(Math.max(...visibleLines(board, t, () => true, fade).map((l) => l.opacity))).toBeGreaterThan(0.2);
+    }
+  });
+
+  it("lets a gentle line linger longer after it ends when nothing follows", () => {
+    const lone = { lines: [{ start: 10, end: 12, text: "x" }] };
+    const at = (fade: "hard" | "normal" | "gentle") => visibleLines(lone, 12.5, () => true, fade)[0]?.opacity ?? 0;
+    expect(at("hard")).toBe(0);
+    expect(at("gentle")).toBeGreaterThan(at("normal"));
   });
 });
 

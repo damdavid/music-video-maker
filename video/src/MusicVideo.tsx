@@ -190,7 +190,7 @@ export const MusicVideo = ({ analysis, lyrics, plan: planProp, storyboard, meta,
   const titleIntro = titleWindow(lyrics);
   const showTitle = (settings.title_card ?? true) && (!showLyrics || titleIntro > 0);
   const lineSection = (k: number) => sections[timeline.musicalSectionAt(lyrics!.lines[k].start)] ?? sections[idx];
-  const lines = showLyrics ? visibleLines(lyrics!, t, (k) => (lineSection(k).style.lyric_animation ?? "pop") !== "dotDissolve") : [];
+  const lines = showLyrics ? visibleLines(lyrics!, t, (k) => (lineSection(k).style.lyric_animation ?? "pop") !== "dotDissolve", settings.lyric_fade ?? "gentle") : [];
 
   return (
     <AbsoluteFill style={{ backgroundColor: background(palette), overflow: "hidden" }}>

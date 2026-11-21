@@ -59,6 +59,8 @@ class Settings(BaseModel):
     renderer: Literal["remotion", "blender"] = "remotion"
     # The song title and artist shown at the start: through the intro until the first lyric appears (up to 8 s), or a 4 s card without lyrics.
     title_card: bool = True
+    # How lyric lines fade in and out, and hand over to the next: hard (quick), normal, or gentle (slow, with the old line rising away).
+    lyric_fade: Literal["hard", "normal", "gentle"] = "gentle"
 
 
 class Project(BaseModel):

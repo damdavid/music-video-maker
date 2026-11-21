@@ -65,6 +65,14 @@ export function DetailsForm({ meta, settings, onMeta, onSettings }: Props) {
             <option value="blender">Blender (realistic 3D)</option>
           </select>
         </label>
+        <label title="How lyric lines fade in and out and hand over to the next one. Gentle fades more slowly and lifts the old line away.">
+          Lyric fade{" "}
+          <select value={settings.lyric_fade ?? "gentle"} onChange={(e) => onSettings({ ...settings, lyric_fade: e.target.value as Settings["lyric_fade"] })}>
+            <option value="hard">Hard</option>
+            <option value="normal">Normal</option>
+            <option value="gentle">Gentle</option>
+          </select>
+        </label>
         <label title="The song title and artist at the start: held through the intro until the first lyric appears (up to 8 seconds).">
           <input type="checkbox" checked={settings.title_card ?? true} onChange={(e) => onSettings({ ...settings, title_card: e.target.checked })} /> Show title and artist at the start
         </label>

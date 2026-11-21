@@ -48,11 +48,13 @@ const LEAD = 0.5;
 const LONG_LEAD = 1;
 const LONG_GAP = 2;
 const HOLD_AFTER = 0.5;
-const FADE_IN = 0.25;
-/** The text (and scrim) of a line is gone this long after the line ends. */
-const LINGER = 0.4;
-/** How quickly a line clears when the next one takes over before it has faded on its own. */
-const HANDOFF = 0.22;
+/** Fade timings per setting: a new line's fade in, how long a line lingers after it ends, and how quickly it clears when the next takes over. */
+export const FADES = {
+  hard: { fadeIn: 0.12, linger: 0.2, handoff: 0.1 },
+  normal: { fadeIn: 0.25, linger: 0.4, handoff: 0.22 },
+  gentle: { fadeIn: 0.5, linger: 0.8, handoff: 0.5 },
+} as const;
+export type LyricFade = keyof typeof FADES;
 
 const appearCache = new WeakMap<Lyrics, number[]>();
 
@@ -106,7 +108,8 @@ export type VisibleLine = {
  * next one clears over HANDOFF instead of vanishing, so back-to-back lines never blink. `fadesOut: false` keeps a line
  * fully opaque after it ends (for animations that clear the text themselves).
  */
-export function visibleLines(lyrics: Lyrics, t: number, fadesOut: (index: number) => boolean = () => true): VisibleLine[] {
+export function visibleLines(lyrics: Lyrics, t: number, fadesOut: (index: number) => boolean = () => true, fade: LyricFade = "normal"): VisibleLine[] {
+  const { fadeIn: FADE_IN, linger: LINGER, handoff: HANDOFF } = FADES[fade];
   const lines = lyrics.lines;
   const appear = appearTimes(lyrics);
   const i = lastStartedIndex(appear, t);

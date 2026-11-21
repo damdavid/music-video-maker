@@ -119,6 +119,16 @@
           "default": true,
           "title": "Title Card",
           "type": "boolean"
+        },
+        "lyric_fade": {
+          "default": "gentle",
+          "enum": [
+            "hard",
+            "normal",
+            "gentle"
+          ],
+          "title": "Lyric Fade",
+          "type": "string"
         }
       },
       "title": "Settings",
