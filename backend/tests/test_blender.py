@@ -14,6 +14,12 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "blender"))
 from mvm import body, hairgen, motion, timing  # noqa: E402
 
 
+def test_the_lyric_fade_defaults_to_gentle_including_for_projects_saved_before_it_existed():
+    assert Project(id="p").settings.lyric_fade == "gentle"
+    assert Project.model_validate({"id": "p", "settings": {"aspect": "9:16"}}).settings.lyric_fade == "gentle"
+    assert Settings(lyric_fade="hard").lyric_fade == "hard"
+
+
 def test_the_title_card_is_on_by_default_including_for_projects_saved_before_it_existed():
     assert Project(id="p").settings.title_card is True
     assert Project.model_validate({"id": "p", "settings": {"aspect": "9:16"}}).settings.title_card is True
@@ -100,6 +106,24 @@ class TestTiming:
         assert timing.title_window(line(60)) == timing.TITLE_CAP_S
         assert timing.title_window(line(1)) == 0 and timing.title_window(line(2)) == 0  # no room for it
         assert timing.title_window([]) == timing.TITLE_NO_LYRICS_S
+
+    def test_a_line_clears_quickly_when_the_next_appears_and_gently_when_it_is_alone(self):
+        # Alone: starts fading just after its last word and takes 0.4 s.
+        assert timing.line_fade_out(10.0, None) == pytest.approx((10.1, 0.4, False))
+        assert timing.line_fade_out(10.0, 20.0) == pytest.approx((10.1, 0.4, False))
+        # The next line appears while it is still on screen: it clears from that moment, in 0.22 s.
+        start, length, handoff = timing.line_fade_out(10.0, 9.85)
+        assert (start, length, handoff) == pytest.approx((9.85, timing.HANDOFF_S, True))
+        # The next line appears just after this one's last word, before its own fade has finished.
+        assert timing.line_fade_out(10.0, 10.3) == pytest.approx((10.1, timing.HANDOFF_S, True))
+
+    def test_the_fade_setting_sets_how_slowly_a_line_hands_over(self):
+        handoff = lambda mode: timing.line_fade_out(10.0, 9.85, mode)[1]
+        assert handoff("hard") < handoff("normal") < handoff("gentle")
+        tail = lambda mode: timing.line_fade_out(10.0, None, mode)[1]
+        assert tail("hard") < tail("normal") < tail("gentle")
+        assert timing.FADES["hard"]["lift"] < timing.FADES["gentle"]["lift"]
+        assert all(timing.line_fade_out(10.0, 9.85, mode)[2] for mode in timing.FADES)
 
     def test_video_size_matches_the_remotion_side(self):
         assert timing.video_size({"aspect": "16:9", "resolution": "720p"}) == (1280, 720)

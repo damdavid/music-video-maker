@@ -154,6 +154,29 @@ def title_window(lines: list[dict]) -> float:
     return room if room >= TITLE_MIN_S else 0.0
 
 
+# Per lyric_fade setting: a new line's fade in, the fade of a line that ends alone (starts after its last word, takes
+# `tail`), how quickly a line clears when the next takes over, and how far it rises as it goes (metres at the text's depth).
+FADES = {
+    "hard": dict(fade_in=0.12, linger=0.05, tail=0.2, handoff=0.1, lift=0.03),
+    "normal": dict(fade_in=0.25, linger=0.1, tail=0.4, handoff=0.22, lift=0.05),
+    "gentle": dict(fade_in=0.5, linger=0.2, tail=0.8, handoff=0.5, lift=0.1),
+}
+HANDOFF_S = FADES["normal"]["handoff"]
+
+
+def line_fade_out(end: float, next_appear: float | None, fade: str = "normal") -> tuple[float, float, bool]:
+    """(start, length, handoff) of a lyric line's fade-out, in seconds.
+
+    A line ends gently by itself, but if the next line begins to appear before that is done, this one clears quickly from that
+    moment instead, so two lines are never printed over each other.
+    """
+    f = FADES[fade]
+    natural = end + f["linger"]
+    if next_appear is not None and next_appear < natural + f["tail"]:
+        return min(natural, next_appear), f["handoff"], True
+    return natural, f["tail"], False
+
+
 def line_words(line: dict) -> list[dict]:
     """Word timings, splitting the line evenly when it has none."""
     words = line.get("words") or []

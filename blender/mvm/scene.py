@@ -128,7 +128,7 @@ def build(props: dict, seconds: float | None, emit):
     anchor = None
     if lines:
         pal = (plan.get("global") or {}).get("palette") or []
-        anchor = lyric_text.build(scene, cam.obj, lines, fps, ("#ffffff", pal[-1] if pal else "#ff9f1c"), n_frames, (w, h))
+        anchor = lyric_text.build(scene, cam.obj, lines, fps, ("#ffffff", pal[-1] if pal else "#ff9f1c"), n_frames, (w, h), settings.get("lyric_fade", "gentle"))
 
     # The title and artist, before the lyrics: through the intro until the first line appears.
     meta = props.get("meta") or {}

@@ -6,7 +6,7 @@ import bpy
 from mathutils import Vector
 
 from . import materials
-from .timing import REVEAL_LEAD, appear_times, line_words
+from .timing import FADES, REVEAL_LEAD, appear_times, line_fade_out, line_words
 
 FONT_CANDIDATES = (
     "/System/Library/Fonts/Supplemental/Arial Bold.ttf",
@@ -66,7 +66,7 @@ def _word_material(name: str, base: str, hi: str, t0: float, t1: float, fps: int
     return mat
 
 
-def build(scene, cam_obj, lines: list[dict], fps: int, palette: tuple[str, str], max_frame: int, size: tuple[int, int]):
+def build(scene, cam_obj, lines: list[dict], fps: int, palette: tuple[str, str], max_frame: int, size: tuple[int, int], fade_mode: str = "gentle"):
     """Returns the anchor empty, parented to the camera, whose location and scale are keyed per frame by the caller."""
     anchor = bpy.data.objects.new("lyrics-anchor", None)
     scene.collection.objects.link(anchor)
@@ -113,11 +113,23 @@ def build(scene, cam_obj, lines: list[dict], fps: int, palette: tuple[str, str],
                 obj = objs[i]
                 obj.location = Vector((x + widths[i] / 2, y, -DEPTH))
                 x += widths[i] + GAP
-        fade = (start_f, start_f + 0.25 * fps, line["end"] * fps + 0.1 * fps, line["end"] * fps + 0.5 * fps)
+        timings = FADES[fade_mode]
+        # A line fades in over its lead-in, however slowly the setting would like to take.
+        in_f = min(timings["fade_in"], max(line["start"] - appears[li], 0.05)) * fps
+        out_s, out_len, handoff = line_fade_out(line["end"], appears[li + 1] if li + 1 < len(lines) else None, fade_mode)
+        out_f = max(out_s * fps, start_f + in_f + 1)
+        fade = (start_f, start_f + in_f, out_f, out_f + out_len * fps)
         for obj, w in zip(objs, words):
             mat = _word_material(f"{obj.name}-m", base, hi, w["start"], w["end"], fps, fade)
             obj.data.materials.append(mat)
             obj.hide_render = True
+            if handoff:
+                # The old line rises a little as it clears, like the new one coming in beneath it.
+                for frame, lift in ((int(out_f), 0.0), (int(fade[3]), timings["lift"])):
+                    base_y = obj.location.y
+                    obj.location.y = base_y + lift
+                    obj.keyframe_insert("location", frame=frame, index=1)
+                    obj.location.y = base_y
             for frame, hidden in ((0, True), (int(start_f) - 2, False), (int(fade[3]) + 2, True)):
                 obj.hide_render = hidden
                 obj.keyframe_insert("hide_render", frame=max(frame, 0))
