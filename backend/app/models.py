@@ -27,6 +27,7 @@ Prop = Literal["lamp", "bench", "tree", "house", "suitcase"]
 Placement = Literal["left", "center", "right"]
 ObjectSize = Literal["small", "medium", "large"]
 Hair = Literal["none", "short", "long", "bun", "hat", "hood"]
+Gender = Literal["male", "female"]
 Outfit = Literal["tee", "coat", "dress", "hoodie"]
 HexColor = Annotated[str, StringConstraints(pattern=r"^#[0-9a-fA-F]{6}$")]
 
@@ -166,6 +167,8 @@ class CharacterDraft(BaseModel):
     id: str = Field(min_length=1, max_length=40, pattern=r"^[a-z0-9_]+$")
     name: str = ""
     description: str = Field(default="", description="Who they are; shown in the editor and given to Claude for continuity")
+    # Sets the body the renderers draw. None for characters made before this was a choice; renderers then guess from hair and outfit.
+    gender: Gender | None = None
     hair: Hair = "short"
     outfit: Outfit = "tee"
     build: float = Field(default=1.0, ge=0.85, le=1.15, description="Height scale")

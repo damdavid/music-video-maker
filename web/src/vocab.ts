@@ -18,6 +18,11 @@ export const EXPRESSIONS = ["neutral", "happy", "sad", "surprised", "calm", "det
 export const PLACEMENTS = ["left", "center", "right"] as const satisfies readonly Placement[];
 export const HAIRS = ["none", "short", "long", "bun", "hat", "hood"] as const satisfies readonly Hair[];
 export const OUTFITS = ["tee", "coat", "dress", "hoodie"] as const satisfies readonly Outfit[];
+export const GENDERS = ["male", "female"] as const;
+
+/** For characters made before gender was a choice: a guess from hair and outfit, shown in the editor so it can be changed. */
+export const legacyGender = (hair: Hair | undefined, outfit: Outfit | undefined): (typeof GENDERS)[number] =>
+  outfit === "dress" || hair === "long" || hair === "bun" ? "female" : "male";
 export const PROP_KINDS = ["lamp", "bench", "tree", "house", "suitcase"] as const;
 export const ILLUSTRATIONS = ["library", "freeform"] as const;
 export const OBJECT_SIZES = ["small", "medium", "large"] as const satisfies readonly NonNullable<CustomObject["size"]>[];

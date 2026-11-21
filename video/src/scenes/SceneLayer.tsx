@@ -176,7 +176,7 @@ export const SceneLayer = ({ uid, scene, cast, objects, t, width: w, height: h, 
           return art ? (
             <FreeformFigure key={`${ch.id}-${i}`} art={art} uid={`${uid}-c${i}`} pose={pose} action={sc.action} t={ft} beat={beat} x={x} y={gy} size={unit * ch.build} facing={sc.facing} mood={sc.expression} faceColor={featureColor(ch.colors.body)} shadow={c.ink} />
           ) : (
-            <Figure key={`${ch.id}-${i}`} pose={pose} colors={ch.colors} hair={ch.hair} outfit={ch.outfit} x={x} y={gy} size={unit * ch.build} facing={sc.facing} face={{ mood: sc.expression, t: ft, open: i === 0 ? mouthOpen(lyrics, t) : 0 }} shadow={c.ink} />
+            <Figure key={`${ch.id}-${i}`} pose={pose} colors={ch.colors} hair={ch.hair} outfit={ch.outfit} gender={ch.gender} x={x} y={gy} size={unit * ch.build} facing={sc.facing} face={{ mood: sc.expression, t: ft, open: i === 0 ? mouthOpen(lyrics, t) : 0 }} shadow={c.ink} />
           );
         })}
       </g>

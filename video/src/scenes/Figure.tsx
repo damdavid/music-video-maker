@@ -1,7 +1,7 @@
 import type { CharacterColors } from "../../../shared/types";
 import { hexToHsl, hslToHex } from "../color";
 import { Face, featureColor, type Mood } from "./face";
-import type { Hair, Outfit } from "./normalize";
+import type { Gender, Hair, Outfit } from "./normalize";
 import { layout, SEG, type Pose, type Pt } from "./rig";
 
 type Props = {
@@ -9,6 +9,8 @@ type Props = {
   colors: CharacterColors;
   hair: Hair;
   outfit: Outfit;
+  /** Shapes the torso: broader shoulders and narrower hips for male, the reverse for female. Omitted for silhouettes. */
+  gender?: Gender;
   /** Ground contact point and scale (pixels per figure-height). */
   x: number;
   y: number;
@@ -74,7 +76,10 @@ const Limb = ({ parts, ink, flat }: { parts: Part[]; ink: string; flat: boolean 
 );
 
 /** A tapering torso from hip to shoulder, with a chest, a waist and hips, and the shadow strip down its back. */
-function torsoPath(hip: Pt, shoulder: Pt, front: number, back: number): string {
+/** How much wider or narrower each part of the torso is: hips, waist, shoulders. */
+const BODY: Record<Gender, [number, number, number]> = { male: [0.94, 1.0, 1.12], female: [1.1, 0.88, 0.9] };
+
+function torsoPath(hip: Pt, shoulder: Pt, front: number, back: number, shape: [number, number, number] = [1, 1, 1]): string {
   const len = Math.hypot(shoulder.x - hip.x, shoulder.y - hip.y) || 1e-6;
   const u = { x: (shoulder.x - hip.x) / len, y: (shoulder.y - hip.y) / len };
   // Perpendicular pointing the way the figure faces (+x when upright).
@@ -83,8 +88,8 @@ function torsoPath(hip: Pt, shoulder: Pt, front: number, back: number): string {
     const c = lerp(hip, shoulder, k);
     return { x: c.x + n.x * side, y: c.y + n.y * side };
   };
-  const wf = (k: number) => front * [0.058, 0.046, 0.06][k];
-  const wb = (k: number) => back * [0.062, 0.044, 0.052][k];
+  const wf = (k: number) => front * [0.058, 0.046, 0.06][k] * shape[k];
+  const wb = (k: number) => back * [0.062, 0.044, 0.052][k] * shape[k];
   const hipF = at(0, wf(0));
   const hipB = at(0, -wb(0));
   const midF = at(0.5, wf(1));
@@ -129,7 +134,7 @@ const Shoe = ({ knee, ankle, lift, color, ink, flat }: { knee: Pt; ankle: Pt; li
 };
 
 /** A flat figure, drawn with outlines and a band of shade on each form; emotion comes from pose and a simple face. */
-export const Figure = ({ pose, colors, hair, outfit, x, y, size, facing, mono, opacity = 1, face, shadow }: Props) => {
+export const Figure = ({ pose, colors, hair, outfit, gender, x, y, size, facing, mono, opacity = 1, face, shadow }: Props) => {
   const j = layout(pose);
   const c = mono ? { body: mono, hair: mono, top: mono, bottom: mono, accent: mono } : colors;
   const flat = !!mono;
@@ -182,8 +187,9 @@ export const Figure = ({ pose, colors, hair, outfit, x, y, size, facing, mono, o
     return `M ${f(hx - 0.05)} ${f(hy - 0.03)} Q ${f(hx - 0.085)} ${f(hy + drop * 0.45)} ${f(mid - half)} ${f(hy + drop)} Q ${f(mid)} ${f(hy + drop + 0.018)} ${f(mid + half)} ${f(hy + drop)} Q ${f(hx + 0.085)} ${f(hy + drop * 0.45)} ${f(hx + 0.05)} ${f(hy - 0.03)} Z`;
   };
 
-  const torso = torsoPath(j.hip, j.shoulder, 1, 1);
-  const torsoShade = torsoPath(j.hip, j.shoulder, -0.5, 1);
+  const shape = gender ? BODY[gender] : undefined;
+  const torso = torsoPath(j.hip, j.shoulder, 1, 1, shape);
+  const torsoShade = torsoPath(j.hip, j.shoulder, -0.5, 1, shape);
   const top = outfit === "hoodie" ? shade(c.top, 0) : c.top;
 
   const hairBack =

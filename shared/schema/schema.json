@@ -797,6 +797,22 @@
           "title": "Description",
           "type": "string"
         },
+        "gender": {
+          "anyOf": [
+            {
+              "enum": [
+                "male",
+                "female"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Gender"
+        },
         "hair": {
           "default": "short",
           "enum": [

@@ -4,6 +4,7 @@ import type { Action, Character, CharacterColors, CustomObject, Scene, Setting, 
 // The generated types mark defaulted fields optional; resolve them once here so drawing code never checks.
 export type Hair = NonNullable<Character["hair"]>;
 export type Outfit = NonNullable<Character["outfit"]>;
+export type Gender = NonNullable<Character["gender"]>;
 export type PropKind = NonNullable<Scene["props"]>[number];
 export type Placement = "left" | "center" | "right";
 
@@ -12,7 +13,7 @@ export type ObjectSize = NonNullable<CustomObject["size"]>;
 export type Illustration = "library" | "freeform";
 export type ResolvedObject = { id: string; size: ObjectSize; svg: string | null };
 export type ResolvedSceneObject = { object_id: string; placement: Placement };
-export type ResolvedCharacter = { id: string; hair: Hair; outfit: Outfit; build: number; colors: CharacterColors; svg: string | null };
+export type ResolvedCharacter = { id: string; gender: Gender; hair: Hair; outfit: Outfit; build: number; colors: CharacterColors; svg: string | null };
 export type ResolvedSceneCharacter = { character_id: string; action: Action; expression: Mood; placement: Placement; facing: "left" | "right" };
 export type ResolvedScene = {
   setting: Setting;
@@ -27,8 +28,12 @@ export type ResolvedScene = {
   background_svg: string | null;
 };
 
+/** For characters made before gender was a choice: a guess from hair and outfit. */
+export const legacyGender = (hair: Hair, outfit: Outfit): Gender => (outfit === "dress" || hair === "long" || hair === "bun" ? "female" : "male");
+
 export const resolveCharacter = (c: Character): ResolvedCharacter => ({
   id: c.id,
+  gender: c.gender ?? legacyGender(c.hair ?? "short", c.outfit ?? "tee"),
   hair: c.hair ?? "short",
   outfit: c.outfit ?? "tee",
   build: c.build ?? 1,

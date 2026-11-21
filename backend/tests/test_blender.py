@@ -11,7 +11,7 @@ from app.models import Project, Settings
 from tests.client import make_client
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "blender"))
-from mvm import motion, timing  # noqa: E402
+from mvm import body, motion, timing  # noqa: E402
 
 
 def test_renderer_defaults_to_remotion_and_is_stored_per_project():
@@ -118,3 +118,44 @@ class TestMotion:
     def test_walking_speed_matches_the_stride(self):
         assert motion.ground_speed("walk") == pytest.approx(4 * 0.2 / 1.1)
         assert motion.ground_speed("run") > motion.ground_speed("walk") > motion.ground_speed("idle") == 0
+
+
+class TestBody:
+    def widest(self, stations, tag):
+        return max(st.rx for st in stations if st.tag == tag)
+
+    def test_male_shoulders_are_broader_and_female_hips_wider_with_a_narrower_waist(self):
+        m, f = body.shaped(body.TORSO, "male"), body.shaped(body.TORSO, "female")
+        assert self.widest(m, "shoulder") > self.widest(f, "shoulder")
+        assert self.widest(m, "chest") > self.widest(f, "chest")
+        assert self.widest(f, "hip") > self.widest(m, "hip")
+        assert self.widest(f, "waist") < self.widest(m, "waist")
+
+    def test_a_female_figure_has_a_bust_and_a_male_one_does_not(self):
+        depth = lambda g: max(st.ry - st.cy for st in body.shaped(body.TORSO, g) if st.tag == "chest")
+        assert depth("female") > depth("male") + 0.01
+        assert depth("female") > max(st.ry - st.cy for st in body.TORSO if st.tag == "chest")
+
+    def test_the_female_jaw_and_neck_are_slighter(self):
+        assert self.widest(body.shaped(body.HEAD, "female"), "jaw") < self.widest(body.shaped(body.HEAD, "male"), "jaw")
+        assert self.widest(body.shaped(body.NECK, "female"), "neck") < self.widest(body.shaped(body.NECK, "male"), "neck")
+
+    def test_every_part_runs_in_one_direction_and_has_no_zero_width_sections(self):
+        for gender in body.GENDER:
+            for name, order in (("TORSO", 1), ("NECK", 1), ("HEAD", 1), ("LEG", -1), ("ARM", -1)):
+                zs = [st.z for st in body.shaped(getattr(body, name), gender)]
+                assert zs == sorted(zs, reverse=order < 0), (name, gender)
+            assert all(st.rx > 0 and st.ry > 0 for part in (body.TORSO, body.LEG, body.ARM, body.HEAD, body.NECK) for st in body.shaped(part, gender))
+
+    def test_the_legs_reach_the_ankle_and_a_figure_stands_on_its_shoes(self):
+        assert abs(body.LEG[-1].z + body.THIGH + body.SHIN) < 0.02  # the last section is the ankle
+        assert 0.02 < body.ANKLE < 0.08
+
+    def test_heights_and_the_fallback_for_characters_without_a_gender(self):
+        assert body.HEIGHT["male"] > body.HEIGHT["female"]
+        assert body.infer_gender("long", "tee") == body.infer_gender("short", "dress") == "female"
+        assert body.infer_gender("short", "hoodie") == body.infer_gender(None, None) == "male"
+
+    def test_bone_blending_goes_from_one_bone_to_the_next_across_a_joint(self):
+        assert body.blend(-0.1, -0.01, 0.05) == 1 and body.blend(0.1, -0.01, 0.05) == 0
+        assert 0.4 < body.blend(-0.01, -0.01, 0.05) < 0.6

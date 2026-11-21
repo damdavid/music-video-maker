@@ -125,6 +125,7 @@ export type Name = string;
  * Who they are; shown in the editor and given to Claude for continuity
  */
 export type Description = string;
+export type Gender = ("male" | "female") | null;
 export type Hair = "none" | "short" | "long" | "bun" | "hat" | "hood";
 export type Outfit = "tee" | "coat" | "dress" | "hoodie";
 /**
@@ -413,6 +414,7 @@ export interface Character {
   id: Id2;
   name?: Name;
   description?: Description;
+  gender?: Gender;
   hair?: Hair;
   outfit?: Outfit;
   build?: Build;
