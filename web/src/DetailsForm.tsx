@@ -65,6 +65,9 @@ export function DetailsForm({ meta, settings, onMeta, onSettings }: Props) {
             <option value="blender">Blender (realistic 3D)</option>
           </select>
         </label>
+        <label title="The song title and artist at the start: held through the intro until the first lyric appears (up to 8 seconds).">
+          <input type="checkbox" checked={settings.title_card ?? true} onChange={(e) => onSettings({ ...settings, title_card: e.target.checked })} /> Show title and artist at the start
+        </label>
         <label>
           <input type="checkbox" checked={settings.lyric_video} onChange={(e) => onSettings({ ...settings, lyric_video: e.target.checked })} /> Lyric video (show lyrics on screen)
         </label>

@@ -141,6 +141,19 @@ def appear_times(lines: list[dict]) -> list[float]:
     return out
 
 
+TITLE_CAP_S = 8.0
+TITLE_MIN_S = 1.5
+TITLE_NO_LYRICS_S = 4.0
+
+
+def title_window(lines: list[dict]) -> float:
+    """Seconds the title card shows at the start: the intro up to the cap, gone before the first lyric appears; 0 if it doesn't fit."""
+    if not lines:
+        return TITLE_NO_LYRICS_S
+    room = min(TITLE_CAP_S, appear_times(lines)[0] - 0.1)
+    return room if room >= TITLE_MIN_S else 0.0
+
+
 def line_words(line: dict) -> list[dict]:
     """Word timings, splitting the line evenly when it has none."""
     words = line.get("words") or []

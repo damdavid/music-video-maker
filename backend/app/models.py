@@ -57,6 +57,8 @@ class Settings(BaseModel):
     auto_cuts: bool = True
     # remotion = the flat 2D renderer with a live preview here; blender = realistic 3D, rendered only on export and much slower.
     renderer: Literal["remotion", "blender"] = "remotion"
+    # The song title and artist shown at the start: through the intro until the first lyric appears (up to 8 s), or a 4 s card without lyrics.
+    title_card: bool = True
 
 
 class Project(BaseModel):

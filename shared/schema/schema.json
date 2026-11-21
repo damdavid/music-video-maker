@@ -114,6 +114,11 @@
           ],
           "title": "Renderer",
           "type": "string"
+        },
+        "title_card": {
+          "default": true,
+          "title": "Title Card",
+          "type": "boolean"
         }
       },
       "title": "Settings",

@@ -8,7 +8,7 @@ import bpy
 from mathutils import Vector
 
 from . import body, camera, figure, lyrics as lyric_text, motion, world
-from .timing import beat_period, beat_phase, bars_per_shot, eye_open, mouth_open, plan_shots, section_spans, video_size, Shot
+from .timing import beat_period, beat_phase, bars_per_shot, eye_open, mouth_open, plan_shots, section_spans, title_window, video_size, Shot
 
 PLACE_X = {"left": -2.4, "center": 0.0, "right": 2.4}
 DEFAULT_COLORS = dict(body="#d9a37e", hair="#2b1d14", top="#3b6fb0", bottom="#23262e", accent="#e8e2d4")
@@ -130,6 +130,15 @@ def build(props: dict, seconds: float | None, emit):
         pal = (plan.get("global") or {}).get("palette") or []
         anchor = lyric_text.build(scene, cam.obj, lines, fps, ("#ffffff", pal[-1] if pal else "#ff9f1c"), n_frames, (w, h))
 
+    # The title and artist, before the lyrics: through the intro until the first line appears.
+    meta = props.get("meta") or {}
+    title_anchor, title_frames = None, 0
+    window = title_window(lines) if settings.get("title_card", True) and (meta.get("title") or meta.get("artist")) else 0.0
+    if window > 0:
+        pal = (plan.get("global") or {}).get("palette") or []
+        title_anchor = lyric_text.build_title(scene, cam.obj, meta.get("title") or "", meta.get("artist") or "", window, fps, ("#ffffff", pal[-1] if pal else "#ff9f1c"), (w, h))
+        title_frames = int(window * fps) + 2
+
     total = sum(r["f1"] - r["f0"] for r in runs) or 1
     done = 0
     for r in runs:
@@ -168,13 +177,16 @@ def build(props: dict, seconds: float | None, emit):
             height = members[0][0].h if members else 1.75
             action = members[0][1].get("action", "idle") if members else "idle"
             cam.key(f, t, r["shots"], azimuths, lead_pos, height, action, energy, seed, fill=r["fill"], new_scene=(f == r["f0"]))
-            if anchor is not None:
-                # In front of the subject (so a head never covers a word), and scaled to keep its size on screen for any lens.
-                d = cam.data.dof.focus_distance
-                d = max(d - 0.5, 0.6 * d)
-                anchor.location = (0.0, 0.0, 0.0)
-                anchor.scale = (d / lyric_text.DEPTH * lyric_text.REF_LENS / cam.data.lens,) * 3
-                anchor.keyframe_insert("scale", frame=f)
+            # Text hangs in front of the subject (so a head never covers a word), scaled to keep its size on screen for any lens.
+            d = cam.data.dof.focus_distance
+            # Never further than TEXT_MAX_M: in a wide shot the lower third of the frame at the subject's distance is underground.
+            d = min(max(d - 0.5, 0.6 * d), lyric_text.TEXT_MAX_M)
+            fit = (d / lyric_text.DEPTH * lyric_text.REF_LENS / cam.data.lens,) * 3
+            for target, until in ((anchor, n_frames), (title_anchor, title_frames)):
+                if target is not None and f < until:
+                    target.location = (0.0, 0.0, 0.0)
+                    target.scale = fit
+                    target.keyframe_insert("scale", frame=f)
             done += 1
             if done % EVENT_EVERY == 0:
                 emit("building", min(0.99, done / total))

@@ -13,7 +13,7 @@ import { PRESETS } from "./presets";
 import { resolveParams } from "./presets/params";
 import { hashString } from "./rng";
 import { beatPeriod, buildTimeline } from "./timeline";
-import { beatPulse, clamp, visibleLines } from "./timing";
+import { beatPulse, clamp, titleWindow, visibleLines } from "./timing";
 import { transitionLayout } from "./transitions";
 import { LyricLayer, LyricScrim } from "./LyricLayer";
 import { barsPerShot, framingFor, holdFirstShot, planShots, type Shot } from "./scenes/direction";
@@ -186,6 +186,9 @@ export const MusicVideo = ({ analysis, lyrics, plan: planProp, storyboard, meta,
   );
 
   const showLyrics = settings.lyric_video !== false && !!lyrics;
+  // With lyrics the title holds through the intro (up to 8 s) and leaves before the first line; without them it is the 4 s open and close.
+  const titleIntro = titleWindow(lyrics);
+  const showTitle = (settings.title_card ?? true) && (!showLyrics || titleIntro > 0);
   const lineSection = (k: number) => sections[timeline.musicalSectionAt(lyrics!.lines[k].start)] ?? sections[idx];
   const lines = showLyrics ? visibleLines(lyrics!, t, (k) => (lineSection(k).style.lyric_animation ?? "pop") !== "dotDissolve") : [];
 
@@ -228,7 +231,7 @@ export const MusicVideo = ({ analysis, lyrics, plan: planProp, storyboard, meta,
           />
         );
       })}
-      {!showLyrics && <TitleCard meta={meta} t={t} duration={durationInFrames / fps} palette={palette} fontFamily={fontFamily} handwritten={riso} />}
+      {showTitle && <TitleCard meta={meta} t={t} duration={durationInFrames / fps} palette={palette} fontFamily={fontFamily} handwritten={riso} openFor={showLyrics ? titleIntro : undefined} closing={!showLyrics} />}
       {audioSrc && <Audio src={audioSrc} />}
     </AbsoluteFill>
   );

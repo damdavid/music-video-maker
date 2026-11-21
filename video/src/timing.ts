@@ -83,6 +83,16 @@ export function activeLineIndex(lyrics: Lyrics, t: number): number {
   return t <= lyrics.lines[i].end + HOLD_AFTER ? i : -1;
 }
 
+/** How the title card is timed before the lyrics: it holds up to this long, and is gone before the first line appears. */
+export const TITLE_CAP_S = 8;
+const TITLE_MIN_S = 1.5;
+/** Seconds the title card shows at the start of a lyric video: the intro, up to the cap; 0 when the lyrics start too soon to fit it. */
+export function titleWindow(lyrics: Lyrics | null): number {
+  const first = lyrics?.lines.length ? appearTimes(lyrics)[0] : Number.POSITIVE_INFINITY;
+  const room = Math.min(TITLE_CAP_S, first - 0.1);
+  return room >= TITLE_MIN_S ? room : 0;
+}
+
 export type VisibleLine = {
   index: number;
   /** 0..1 fade of the whole line. */

@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { accent, hexToHsl, hslToHex, mixPalettes, safePalette, shiftPalette } from "./color";
 import { mulberry32 } from "./rng";
 import { videoSize } from "./size";
-import { activeLineIndex, appearTimes, beatPhase, beatPulse, fadeEnvelope, normalizeWord, sectionIndexAt, visibleLines, wordStates } from "./timing";
+import { activeLineIndex, appearTimes, beatPhase, TITLE_CAP_S, titleWindow, beatPulse, fadeEnvelope, normalizeWord, sectionIndexAt, visibleLines, wordStates } from "./timing";
 
 const lyrics = {
   lines: [
@@ -197,5 +197,29 @@ describe("palettes", () => {
     expect(mixPalettes(["#000000", "#ffffff"], ["#ff0000", "#00ff00"], 0)).toEqual(["#000000", "#ffffff"]);
     expect(mixPalettes(["#000000", "#ffffff"], ["#ff0000", "#00ff00"], 1)).toEqual(["#ff0000", "#00ff00"]);
     expect(mixPalettes(["#000000", "#ffffff"], ["#000000", "#808080", "#ffffff"], 0.5)).toEqual(["#000000", "#808080", "#ffffff"]);
+  });
+});
+
+describe("titleWindow", () => {
+  const at = (start: number) => ({ lines: [{ start, end: start + 3, text: "x" }] });
+
+  it("holds through the intro and is gone just before the first line appears", () => {
+    // A line at 6 s first appears at 5 s (a second of lead-in after the start of the song), so the card leaves by 4.9.
+    expect(titleWindow(at(6))).toBeCloseTo(appearTimes(at(6))[0] - 0.1, 9);
+    expect(titleWindow(at(6))).toBeLessThan(appearTimes(at(6))[0]);
+  });
+
+  it("is capped when the intro is long", () => {
+    expect(titleWindow(at(60))).toBe(TITLE_CAP_S);
+  });
+
+  it("is skipped when the lyrics start too soon for it to fit", () => {
+    expect(titleWindow(at(1))).toBe(0);
+    expect(titleWindow(at(2))).toBe(0);
+  });
+
+  it("takes the cap when there are no lyrics to wait for", () => {
+    expect(titleWindow(null)).toBe(TITLE_CAP_S);
+    expect(titleWindow({ lines: [] })).toBe(TITLE_CAP_S);
   });
 });
