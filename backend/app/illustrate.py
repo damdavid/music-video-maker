@@ -48,7 +48,7 @@ Animatable parts
 - Draw limbs as thick rounded strokes (stroke-linecap="round") or rounded shapes, so a rotated joint still looks connected.
 
 Style and limits
-- Flat solid colors, simple shapes, optional gradients. Use exactly the character's colors, hair style and outfit.
+- Flat solid colors, simple shapes, optional gradients. Use exactly the character's colors, hair style and outfit, and a body that reads as the character's gender (shoulder, waist and hip proportions).
 - Allowed elements only: {ALLOWED}. No text, images, filters, styles, scripts or animation.
 - Keep it under about 40 elements."""
 
@@ -134,7 +134,7 @@ def _draw(client: anthropic.Anthropic, system: str, user: str, kind: str, effort
 
 
 def draw_character(client: anthropic.Anthropic, ch: Character, palette: list[str], effort: str) -> str:
-    brief = ch.model_dump(include={"id", "name", "description", "hair", "outfit", "build", "colors"})
+    brief = ch.model_dump(include={"id", "name", "description", "gender", "hair", "outfit", "build", "colors"})
     user = f"Draw this character.\n\n{json.dumps(brief, indent=1)}\n\nScene palette (dark to light), for harmony: {json.dumps(palette)}"
     return _draw(client, FIGURE_SYSTEM, user, "figure", effort)
 

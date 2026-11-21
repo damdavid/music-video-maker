@@ -9,6 +9,7 @@ from pydantic import BaseModel, Field
 from app.models import (
     AnalysisData,
     CustomObject,
+    Gender,
     Hair,
     Illustration,
     Lyrics,
@@ -32,7 +33,7 @@ Given a song's meaning, mood, structure and lyrics, you design a cast and one sc
 
 Rules:
 - Choose only from the allowed values; the renderer supports nothing else.
-- Cast: usually ONE protagonist (id like "hero", lowercase letters/digits/underscores). Add a second character only if the song is clearly about two people. Give them a short description, a hair style, an outfit, and five hex colors (body, hair, top, bottom, accent). Pick clothing colors that stand out against the scene palette you are given, and keep the same cast across every scene.
+- Cast: usually ONE protagonist (id like "hero", lowercase letters/digits/underscores). Add a second character only if the song is clearly about two people. Give them a short description, a gender (male or female, to match who they are), a hair style, an outfit, and five hex colors (body, hair, top, bottom, accent). Pick clothing colors that stand out against the scene palette you are given, and keep the same cast across every scene.
 - One scene per section, in order. Follow the song's arc: settings, time of day and weather should change with the story and the energy, not repeat for every section.
 - Actions: walk/run for journeys and urgency, sit for reflection, slump for sadness or defeat, look_up for hope or wonder, reach for longing, wave for greeting or farewell, dance and jump for joy or release, idle for stillness.
 - Expressions (neutral, happy, sad, surprised, calm, determined) are simple dot-eye faces. Set one when the moment's feeling differs from what the action suggests (a sad walk, a calm sit after a storm); leave it out to let the action pick.
@@ -58,6 +59,7 @@ class LooseCharacter(BaseModel):
     id: str = Field(description='Short id of lowercase letters, digits and underscores, like "hero"')
     name: str = ""
     description: str = Field(default="", description="Who they are; shown in the editor and given to Claude for continuity")
+    gender: Gender = Field(default="male", description="male or female, to match who they are")
     hair: Hair = "short"
     outfit: Outfit = "tee"
     build: float = Field(default=1.0, description="Height scale, 0.85 to 1.15")
@@ -96,7 +98,7 @@ def _cast(cast: list[LooseCharacter]) -> list[dict]:
         if cid in out:
             continue
         colors = {k: _hex(v) or DEFAULT_COLORS[k] for k, v in c.colors.model_dump().items()}
-        out[cid] = {**c.model_dump(include={"name", "description", "hair", "outfit"}), "id": cid, "build": _clamp(c.build, 0.85, 1.15), "colors": colors}
+        out[cid] = {**c.model_dump(include={"name", "description", "gender", "hair", "outfit"}), "id": cid, "build": _clamp(c.build, 0.85, 1.15), "colors": colors}
     return list(out.values())[:MAX_CAST]
 
 

@@ -7,7 +7,7 @@ import zlib
 import bpy
 from mathutils import Vector
 
-from . import camera, figure, lyrics as lyric_text, motion, world
+from . import body, camera, figure, lyrics as lyric_text, motion, world
 from .timing import beat_period, beat_phase, bars_per_shot, eye_open, mouth_open, plan_shots, section_spans, video_size, Shot
 
 PLACE_X = {"left": -2.4, "center": 0.0, "right": 2.4}
@@ -99,7 +99,9 @@ def build(props: dict, seconds: float | None, emit):
                 ch = cast.get(c["character_id"])
                 if not ch:
                     continue
-                fig = figure.Figure(f"s{i}c{j}", ch.get("colors") or DEFAULT_COLORS, ch.get("hair") or "short", ch.get("outfit") or "tee", 1.75 * (ch.get("build") or 1.0))
+                hair, outfit = ch.get("hair") or "short", ch.get("outfit") or "tee"
+                gender = ch.get("gender") or body.infer_gender(hair, outfit)
+                fig = figure.Figure(f"s{i}c{j}", ch.get("colors") or DEFAULT_COLORS, hair, outfit, gender, body.HEIGHT[gender] * (ch.get("build") or 1.0))
                 members.append((fig, c, j))
             sceneinfo["members"] = members
 

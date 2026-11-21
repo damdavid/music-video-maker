@@ -36,6 +36,17 @@ describe("expressions", () => {
     expect(out.size).toBe(moods.length);
   });
 
+  it("draws a different torso for each gender", () => {
+    const body = (gender?: "male" | "female") =>
+      renderToStaticMarkup(
+        <svg>
+          <Figure pose={poseFor("idle", { t: 0, beat: 0, beatLen: 0.5, energy: 0, seed: 1, variant: 0 })} colors={COLORS} hair="short" outfit="tee" gender={gender} x={0} y={0} size={100} facing="right" />
+        </svg>,
+      );
+    expect(body("male")).not.toBe(body("female"));
+    expect(body(undefined)).not.toBe(body("male"));
+  });
+
   it("the rig draws a face for cast members but not for silhouettes", () => {
     // The outline shares the feature color, so the cheeks are what only a face draws.
     const cheek = mix(COLORS.body, "#e0556a", 0.55);

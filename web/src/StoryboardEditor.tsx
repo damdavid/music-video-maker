@@ -5,7 +5,7 @@ import { pollJob, useAlive } from "./jobs";
 import { Select } from "./Select";
 import { fmtRange } from "./time";
 import { defaultExpression } from "video/src/scenes/face";
-import { ACTIONS, EXPRESSIONS, HAIRS, ILLUSTRATIONS, OBJECT_SIZES, OUTFITS, PLACEMENTS, PROP_KINDS, SETTINGS, TIMES, WEATHERS } from "./vocab";
+import { ACTIONS, EXPRESSIONS, GENDERS, HAIRS, ILLUSTRATIONS, OBJECT_SIZES, OUTFITS, PLACEMENTS, PROP_KINDS, SETTINGS, TIMES, WEATHERS, legacyGender } from "./vocab";
 
 type PropKind = (typeof PROP_KINDS)[number];
 
@@ -32,6 +32,7 @@ const COLOR_KEYS = ["body", "hair", "top", "bottom", "accent"] as const;
 const NEW_CHARACTER = (id: string): Character => ({
   id,
   name: "New character",
+  gender: "male",
   hair: "short",
   outfit: "tee",
   build: 1,
@@ -212,6 +213,7 @@ export function StoryboardEditor({ projectId, board, sections, sectionDescriptio
             <div key={idx} className="card row">
               <strong className="mono">{c.id}</strong>
               <input value={c.name ?? ""} placeholder="Name" onChange={(e) => setCharacter(idx, { name: e.target.value })} />
+              <label>Gender <Select value={c.gender ?? legacyGender(c.hair, c.outfit)} options={GENDERS} onChange={(v) => setCharacter(idx, { gender: v })} /></label>
               <label>Hair <Select value={c.hair ?? "short"} options={HAIRS} onChange={(v) => setCharacter(idx, { hair: v })} /></label>
               <label>Outfit <Select value={c.outfit ?? "tee"} options={OUTFITS} onChange={(v) => setCharacter(idx, { outfit: v })} /></label>
               <label>
