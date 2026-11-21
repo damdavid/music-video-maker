@@ -54,6 +54,8 @@ class Settings(BaseModel):
     visual_mode: VisualMode = "abstract"
     # Scenes are cut into wide/medium/close shots on the downbeats; off keeps each scene to one slowly pushing shot.
     auto_cuts: bool = True
+    # remotion = the flat 2D renderer with a live preview here; blender = realistic 3D, rendered only on export and much slower.
+    renderer: Literal["remotion", "blender"] = "remotion"
 
 
 class Project(BaseModel):

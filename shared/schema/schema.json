@@ -105,6 +105,15 @@
           "default": true,
           "title": "Auto Cuts",
           "type": "boolean"
+        },
+        "renderer": {
+          "default": "remotion",
+          "enum": [
+            "remotion",
+            "blender"
+          ],
+          "title": "Renderer",
+          "type": "string"
         }
       },
       "title": "Settings",

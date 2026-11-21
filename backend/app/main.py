@@ -519,6 +519,7 @@ def start_render(project_id: str, seconds: float | None = Query(None, gt=0, le=3
     project = _load(project_id)
     analysis = _analysis_or_409(project_id)
     props = render.build_props(project, analysis, _optional_lyrics(project_id), _optional_plan(project_id), _optional_storyboard(project_id))
+    props["audioPath"] = str(_dir(project_id) / "audio.mp3")  # Blender reads the file; Remotion's browser fetches audioSrc
     try:
         job = render.start(project_id, _dir(project_id) / "out", props, seconds)
     except render.RenderBusy as e:
