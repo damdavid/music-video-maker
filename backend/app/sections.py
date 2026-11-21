@@ -8,6 +8,15 @@ MAX_SECTIONS = 40
 TOLERANCE = 1e-3
 
 
+def prune_to(n: int, plan: StylePlan | None, board: Storyboard | None, descriptions: list[str]) -> tuple[StylePlan | None, Storyboard | None, list[str]]:
+    """Drops what is keyed to a section that no longer exists (after a re-analysis found fewer sections)."""
+    if plan:
+        plan = plan.model_copy(update={"sections": [s for s in plan.sections if s.section_ref < n]})
+    if board:
+        board = board.model_copy(update={"scenes": [s for s in board.scenes if s.section_ref < n]})
+    return plan, board, descriptions[:n]
+
+
 def validate(edits: list[SectionEdit], duration: float, n_old: int) -> list[Section]:
     """The edits as sections, snapped exactly onto each other; ValueError says what is wrong."""
     if not edits:
