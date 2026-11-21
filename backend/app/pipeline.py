@@ -12,6 +12,8 @@ from app.separation import isolate_vocals
 # Share of the progress bar each stage owns; separation dominates the wall-clock time.
 ANALYZE_END = 0.15
 SEPARATE_END = 0.65
+# Refining word timings is most of the time alignment takes.
+REFINE_START = 0.75
 
 
 def run(d: Path, project: Project, job: ProcessJob) -> None:
@@ -31,4 +33,5 @@ def run(d: Path, project: Project, job: ProcessJob) -> None:
             on_progress=lambda frac: job.report("separating vocals", ANALYZE_END + frac * (SEPARATE_END - ANALYZE_END)),
         )
     job.report("aligning lyrics", SEPARATE_END)
-    write_atomic(d / "lyrics.json", align(vocals, project.lyrics_text).model_dump_json())
+    lyrics = align(vocals, project.lyrics_text, on_stage=lambda stage: job.report(stage, REFINE_START))
+    write_atomic(d / "lyrics.json", lyrics.model_dump_json())

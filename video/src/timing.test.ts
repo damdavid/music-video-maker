@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { accent, hexToHsl, hslToHex, mixPalettes, safePalette, shiftPalette } from "./color";
 import { mulberry32 } from "./rng";
 import { videoSize } from "./size";
-import { activeLineIndex, beatPhase, beatPulse, fadeEnvelope, normalizeWord, sectionIndexAt, visibleLines, wordStates } from "./timing";
+import { activeLineIndex, appearTimes, beatPhase, beatPulse, fadeEnvelope, normalizeWord, sectionIndexAt, visibleLines, wordStates } from "./timing";
 
 const lyrics = {
   lines: [
@@ -28,11 +28,12 @@ describe("timing", () => {
     expect(beatPulse(beats, 2)).toBeCloseTo(1);
   });
 
-  it("shows a line from just before it starts until shortly after it ends", () => {
-    expect(activeLineIndex(lyrics, 0.5)).toBe(-1);
-    expect(activeLineIndex(lyrics, 0.9)).toBe(0);
+  it("shows a line from before it starts until shortly after it ends", () => {
+    expect(activeLineIndex(lyrics, -0.1)).toBe(-1);
+    expect(activeLineIndex(lyrics, 0.1)).toBe(0); // the first line gets the long lead-in
     expect(activeLineIndex(lyrics, 3.4)).toBe(0);
-    expect(activeLineIndex(lyrics, 4)).toBe(-1);
+    expect(activeLineIndex(lyrics, 3.6)).toBe(-1);
+    expect(activeLineIndex(lyrics, 4.1)).toBe(1); // a 2 s gap before it: a second of lead-in
     expect(activeLineIndex(lyrics, 5.2)).toBe(1);
   });
 
@@ -135,10 +136,44 @@ describe("visibleLines", () => {
   });
 
   it("fades a lone line in before it starts and out after it ends, like activeLineIndex", () => {
-    expect(visibleLines(lyrics, 0.5)).toEqual([]);
-    expect(visibleLines(lyrics, 0.9)[0].index).toBe(0);
+    expect(visibleLines(lyrics, -0.1)).toEqual([]);
+    expect(visibleLines(lyrics, 0.1)[0].index).toBe(0);
     expect(visibleLines(lyrics, 2)[0].opacity).toBe(1);
     expect(visibleLines(lyrics, 3.5)).toEqual([]);
+  });
+
+  describe("lead-in", () => {
+    const at = (lines: { start: number; end: number }[]) => appearTimes({ lines: lines.map((l) => ({ ...l, text: "x" })) });
+
+    it("is a second after a gap of two seconds or more, and for the first line", () => {
+      expect(at([{ start: 10, end: 12 }, { start: 20, end: 22 }])).toEqual([9, 19]);
+    });
+
+    it("is half a second after a shorter gap", () => {
+      expect(at([{ start: 10, end: 12 }, { start: 14, end: 16 }, { start: 16.8, end: 18 }])).toEqual([9, 13, 16.3]);
+    });
+
+    it("never starts before the previous line has ended, so it is never pushed out mid-line", () => {
+      const times = at([{ start: 10, end: 12 }, { start: 12.3, end: 14 }]);
+      expect(times[1]).toBeCloseTo(12, 9);
+      const board = { lines: [{ start: 10, end: 12, text: "a" }, { start: 12.3, end: 14, text: "b" }] };
+      expect(visibleLines(board, 11.99).map((l) => [l.index, l.exit])).toEqual([[0, 0]]);
+    });
+
+    it("keeps the short lead-in when lines run straight on, and stays in order for overlapping lines", () => {
+      expect(at([{ start: 10, end: 12 }, { start: 12, end: 14 }])[1]).toBeCloseTo(11.85, 9);
+      const overlapping = at([{ start: 10, end: 12 }, { start: 10.05, end: 14 }, { start: 11, end: 15 }]);
+      expect(overlapping).toEqual([...overlapping].sort((a, b) => a - b));
+    });
+
+    it("has the line fully readable before its first word is sung, however much room there was", () => {
+      const lone = { lines: [{ start: 20, end: 22, text: "x" }, { start: 30, end: 32, text: "y" }] };
+      expect(visibleLines(lone, 29.05)[0]).toMatchObject({ index: 1 });
+      expect(visibleLines(lone, 29.2)[0].opacity).toBeLessThan(1);
+      expect(visibleLines(lone, 29.3)[0].opacity).toBe(1);
+      const tight = { lines: [{ start: 10, end: 12, text: "a" }, { start: 12, end: 14, text: "b" }] };
+      expect(visibleLines(tight, 12)[1].opacity).toBe(1);
+    });
   });
 
   it("keeps a line that clears itself (dotDissolve) opaque after it ends, until the hold is over", () => {

@@ -4,6 +4,12 @@ import { clamp } from "./timing";
 
 /** Length of the dissolve at the end of a line, in seconds. */
 export const DISSOLVE_S = 0.45;
+
+/** Words that appear as they are sung start appearing this many seconds early, so each has landed by its beat. */
+export const REVEAL_LEAD = 0.15;
+
+/** 0..1 through a typed word: starts REVEAL_LEAD before the word is sung and finishes as it ends. */
+export const typedProgress = (t: number, start: number, end: number) => clamp((t - (start - REVEAL_LEAD)) / (Math.max(end - start, 0.001) + REVEAL_LEAD));
 /** How much of the dissolve a word may wait before starting (the rest is its own duration). */
 const STAGGER = 0.4;
 
