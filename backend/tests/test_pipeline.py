@@ -30,7 +30,14 @@ def fakes(tmp_path, monkeypatch):
 
     monkeypatch.setattr(pipeline, "analyze", lambda p: calls.append("analyze") or _analysis())
     monkeypatch.setattr(pipeline, "isolate_vocals", fake_isolate)
-    monkeypatch.setattr(pipeline, "align", lambda a, t: calls.append("align") or Lyrics(lines=[Line(start=0, end=1, text=t)]))
+
+    def fake_align(audio, text, on_stage=None):
+        calls.append("align")
+        if on_stage:
+            on_stage("refining timings")
+        return Lyrics(lines=[Line(start=0, end=1, text=text)])
+
+    monkeypatch.setattr(pipeline, "align", fake_align)
     return calls, seen
 
 
@@ -49,7 +56,7 @@ def test_full_pipeline_orders_stages_and_progress_never_decreases(tmp_path, fake
     assert calls == ["analyze", "separate", "align"]
     assert (tmp_path / "analysis.json").exists() and (tmp_path / "lyrics.json").exists()
     stages = [s for s, _ in reports]
-    assert stages[0] == "analyzing" and stages[-1] == "aligning lyrics" and "separating vocals" in stages
+    assert stages[0] == "analyzing" and stages[-1] == "refining timings" and {"separating vocals", "aligning lyrics"} <= set(stages)
     fractions = [f for _, f in reports]
     assert fractions == sorted(fractions) and 0 < fractions[0] and fractions[-1] < 1
 

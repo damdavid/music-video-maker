@@ -40,7 +40,13 @@ export function beatPhase(beats: number[], t: number, bpm: number): number {
   return i + (t - beats[i]) / Math.max(beats[i + 1] - beats[i], 1e-3);
 }
 
-const HOLD_BEFORE = 0.15;
+/** How early a line starts to appear: this at least, so lines that run on from one another still show in time. */
+const MIN_LEAD = 0.15;
+/** The usual lead-in, enough for the line to be fully readable when its first word is sung. */
+const LEAD = 0.5;
+/** A line after a gap of at least LONG_GAP seconds (a break, or the start of the song) gets the longer lead-in. */
+const LONG_LEAD = 1;
+const LONG_GAP = 2;
 const HOLD_AFTER = 0.5;
 const FADE_IN = 0.25;
 /** The text (and scrim) of a line is gone this long after the line ends. */
@@ -48,9 +54,31 @@ const LINGER = 0.4;
 /** How quickly a line clears when the next one takes over before it has faded on its own. */
 const HANDOFF = 0.22;
 
+const appearCache = new WeakMap<Lyrics, number[]>();
+
+/**
+ * When each line starts to appear: a little before it is sung, so there is time to read it. The lead-in is never longer
+ * than the time since the previous line ended, so a line is never pushed off screen while it is still being sung.
+ */
+export function appearTimes(lyrics: Lyrics): number[] {
+  const cached = appearCache.get(lyrics);
+  if (cached) return cached;
+  let prevEnd = Number.NEGATIVE_INFINITY;
+  let last = Number.NEGATIVE_INFINITY;
+  const times = lyrics.lines.map((l) => {
+    const room = l.start - prevEnd;
+    const lead = room >= LONG_GAP ? LONG_LEAD : Math.min(LEAD, Math.max(room, MIN_LEAD));
+    last = Math.max(l.start - lead, last); // lastStartedIndex needs them in order
+    prevEnd = l.end;
+    return last;
+  });
+  appearCache.set(lyrics, times);
+  return times;
+}
+
 /** The line to show at time t, lingering briefly after it ends; -1 when between lines. */
 export function activeLineIndex(lyrics: Lyrics, t: number): number {
-  const i = lastStartedIndex(lyrics.lines.map((l) => l.start - HOLD_BEFORE), t);
+  const i = lastStartedIndex(appearTimes(lyrics), t);
   if (i < 0) return -1;
   return t <= lyrics.lines[i].end + HOLD_AFTER ? i : -1;
 }
@@ -70,15 +98,16 @@ export type VisibleLine = {
  */
 export function visibleLines(lyrics: Lyrics, t: number, fadesOut: (index: number) => boolean = () => true): VisibleLine[] {
   const lines = lyrics.lines;
-  const i = lastStartedIndex(lines.map((l) => l.start - HOLD_BEFORE), t);
+  const appear = appearTimes(lyrics);
+  const i = lastStartedIndex(appear, t);
   if (i < 0) return [];
   const out: VisibleLine[] = [];
   const shown = (k: number): VisibleLine | null => {
     const line = lines[k];
-    const from = line.start - HOLD_BEFORE;
-    const next = lines[k + 1];
-    const takeover = next ? next.start - HOLD_BEFORE : Number.POSITIVE_INFINITY;
-    const fadeIn = clamp((t - from) / FADE_IN);
+    const from = appear[k];
+    const takeover = appear[k + 1] ?? Number.POSITIVE_INFINITY;
+    // Fully in by the time the line is sung, even when there was little room to lead in.
+    const fadeIn = clamp((t - from) / Math.max(Math.min(FADE_IN, line.start - from), 0.05));
     const own = fadesOut(k) ? clamp((line.end + LINGER - t) / FADE_IN) : t <= line.end + HOLD_AFTER ? 1 : 0;
     const exit = t >= takeover ? clamp((t - takeover) / HANDOFF) : 0;
     const opacity = Math.min(fadeIn, own, 1 - exit);

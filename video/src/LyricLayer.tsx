@@ -1,7 +1,7 @@
 import { AbsoluteFill, spring, useCurrentFrame, useVideoConfig } from "remotion";
 import type { Line, LyricAnimation, StylePlan } from "../../shared/types";
 import { background, brightestAccent, foreground, hexToHsl } from "./color";
-import { dissolveStyle, DISSOLVE_S, inkStampOffset, inkStampScale } from "./lyricFx";
+import { dissolveStyle, DISSOLVE_S, inkStampOffset, inkStampScale, REVEAL_LEAD, typedProgress } from "./lyricFx";
 import { easeInOutSine } from "./easing";
 import { canWrite } from "./strokeFont";
 import { StrokeWriting } from "./StrokeWriting";
@@ -51,7 +51,7 @@ export const LyricLayer = ({ line, mode, plan, palette, beats, fontFamily, t, se
   const lift = easeInOutSine(exit);
 
   const pop = (w: (typeof words)[number]): React.CSSProperties => {
-    const s = spring({ frame: frame - w.start * fps, fps, config: { damping: 11, stiffness: 160 } });
+    const s = spring({ frame: frame - (w.start - REVEAL_LEAD) * fps, fps, config: { damping: 11, stiffness: 160 } });
     return { color: base, opacity: Math.min(1, s * 1.5), transform: `scale(${0.6 + 0.4 * s}) translateY(${(1 - s) * 18}px)` };
   };
 
@@ -68,7 +68,7 @@ export const LyricLayer = ({ line, mode, plan, palette, beats, fontFamily, t, se
       case "dotDissolve":
         return { ...pop(w), ...dissolveStyle(dissolve, i, seed, size) };
       case "inkStamp": {
-        const s = spring({ frame: frame - w.start * fps, fps, config: { damping: 12, stiffness: 190 } });
+        const s = spring({ frame: frame - (w.start - REVEAL_LEAD) * fps, fps, config: { damping: 12, stiffness: 190 } });
         const { dx, dy } = inkStampOffset(s, size);
         return {
           color: base,
@@ -80,7 +80,7 @@ export const LyricLayer = ({ line, mode, plan, palette, beats, fontFamily, t, se
       case "typewriter":
         return { color: base };
       case "kinetic": {
-        const s = spring({ frame: frame - (w.start - 0.1) * fps, fps, config: { damping: 13 } });
+        const s = spring({ frame: frame - (w.start - REVEAL_LEAD) * fps, fps, config: { damping: 13 } });
         const hit = emphasis.has(normalizeWord(w.text));
         return {
           color: hit ? hi : base,
@@ -94,10 +94,10 @@ export const LyricLayer = ({ line, mode, plan, palette, beats, fontFamily, t, se
     }
   };
 
-  // The pen starts a beat before the word is sung and finishes as it ends, so the word is written by the time it lands.
-  const writeProgress = (w: (typeof words)[number]) => easeInOutSine((t - (w.start - 0.12)) / (Math.max(w.end - w.start, 0.35) + 0.12));
+  // The pen starts just before the word is sung and finishes as it ends, so the word is written by the time it lands.
+  const writeProgress = (w: (typeof words)[number]) => easeInOutSine((t - (w.start - REVEAL_LEAD)) / (Math.max(w.end - w.start, 0.35) + REVEAL_LEAD));
 
-  const typed = (w: (typeof words)[number]) => w.text.slice(0, Math.ceil(w.text.length * w.progress));
+  const typed = (w: (typeof words)[number]) => w.text.slice(0, Math.ceil(w.text.length * typedProgress(t, w.start, w.end)));
 
   return (
     <AbsoluteFill style={{ alignItems: "center", justifyContent: "center", padding: width * 0.08, opacity, transform: lift ? `translateY(${(-lift * size * 0.7).toFixed(2)}px) scale(${(1 - 0.04 * lift).toFixed(4)})` : undefined }}>

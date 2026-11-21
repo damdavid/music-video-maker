@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { dissolveStyle, inkStampOffset, inkStampScale } from "./lyricFx";
+import { dissolveStyle, inkStampOffset, inkStampScale, REVEAL_LEAD, typedProgress } from "./lyricFx";
 
 const radiusOf = (css: Record<string, string | number>) => Number(/#000 ([\d.]+)px/.exec(String(css.maskImage))![1]);
 
@@ -16,6 +16,20 @@ describe("inkStampOffset", () => {
   it("over-scales while landing", () => {
     expect(inkStampScale(0)).toBeCloseTo(1.15, 6);
     expect(inkStampScale(1)).toBe(1);
+  });
+});
+
+describe("typedProgress", () => {
+  it("starts typing a little before the word is sung and has finished it when it ends", () => {
+    expect(typedProgress(10 - REVEAL_LEAD - 0.01, 10, 11)).toBe(0);
+    expect(typedProgress(10, 10, 11)).toBeGreaterThan(0.05);
+    expect(typedProgress(11, 10, 11)).toBe(1);
+    expect(typedProgress(12, 10, 11)).toBe(1);
+  });
+
+  it("copes with a zero-length word", () => {
+    expect(Number.isFinite(typedProgress(10, 10, 10))).toBe(true);
+    expect(typedProgress(10, 10, 10)).toBeGreaterThan(0.9);
   });
 });
 
