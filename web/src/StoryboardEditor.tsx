@@ -14,6 +14,8 @@ type PropKind = (typeof PROP_KINDS)[number];
 type EScene = Omit<Scene, "characters" | "props" | "objects"> & { characters?: SceneCharacter[]; props?: PropKind[]; objects?: SceneObject[] };
 type EBoard = Omit<Storyboard, "cast" | "scenes" | "objects"> & { cast?: Character[]; objects?: CustomObject[]; scenes?: EScene[] };
 const asBoard = (b: EBoard) => b as unknown as Storyboard;
+// A scene for a section the song no longer has can't be saved (the server rejects it), and would block every save.
+const savable = (b: EBoard, sections: number) => asBoard({ ...b, scenes: (b.scenes ?? []).filter((s) => s.section_ref < sections) });
 const asEBoard = (b: Storyboard | null) => (b ?? { illustration: "library", cast: [], scenes: [] }) as unknown as EBoard;
 const POLL_MS = 1500;
 
@@ -119,7 +121,7 @@ export function StoryboardEditor({ projectId, board, sections, sectionDescriptio
     setError("");
     setStatus("");
     try {
-      await saveStoryboard(projectId, asBoard(b));
+      await saveStoryboard(projectId, savable(b, sections.length));
       const first = await startIllustration(projectId, target);
       const st = await pollJob(first, () => illustrationStatus(projectId), { intervalMs: POLL_MS, alive: () => alive.current, onProgress: setArt });
       if (!st) return;
@@ -148,7 +150,7 @@ export function StoryboardEditor({ projectId, board, sections, sectionDescriptio
           onClick={() =>
             run("all", async () => {
               // Custom objects live in the storyboard, so save them first; generating keeps them.
-              if (board) await saveStoryboard(projectId, asBoard(b));
+              if (board) await saveStoryboard(projectId, savable(b, sections.length));
               replace(await generateStoryboard(projectId));
             })
           }
@@ -273,7 +275,7 @@ export function StoryboardEditor({ projectId, board, sections, sectionDescriptio
                           onClick={() =>
                             run(i, async () => {
                               // Persist edits first so the redo is judged against the current storyboard.
-                              await saveStoryboard(projectId, asBoard(b));
+                              await saveStoryboard(projectId, savable(b, sections.length));
                               setScene(i, (await regenerateScene(projectId, i)) as unknown as EScene);
                             })
                           }
@@ -379,7 +381,7 @@ export function StoryboardEditor({ projectId, board, sections, sectionDescriptio
               disabled={working}
               onClick={() =>
                 run("all", async () => {
-                  await saveStoryboard(projectId, asBoard(b));
+                  await saveStoryboard(projectId, savable(b, sections.length));
                   setStatus("Saved");
                 })
               }

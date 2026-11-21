@@ -157,3 +157,37 @@ def test_section_edits_reindex_everything_keyed_by_section(tmp_path, monkeypatch
     jobs.JOBS[(pid, "illustrate")] = jobs.ProcessJob(project_id=pid, kind="illustrate", state="running")
     assert client.put(f"/projects/{pid}/sections", json=split + rest).status_code == 409
     jobs.JOBS.clear()
+
+
+def test_a_reanalysis_that_finds_fewer_sections_prunes_what_was_keyed_to_the_rest(tmp_path, monkeypatch):
+    import time
+
+    from app import jobs
+    from app.models import Scene, Storyboard, StyleGlobal, StylePlan, StyleSection
+    from tests.test_style_plan import _analysis
+
+    monkeypatch.setattr(main, "PROJECTS_DIR", tmp_path)
+    jobs.JOBS.clear()
+    client = make_client()
+    pid = client.post("/projects", files={"audio": ("a.mp3", b"x")}).json()["id"]
+    d = tmp_path / pid
+    (d / "analysis.json").write_text(_analysis(4).model_dump_json())
+    plan = StylePlan.model_validate({"global": StyleGlobal(palette=["#000000", "#ffffff"], font_family="Inter", typography_style="bold", background_preset="tunnel"), "sections": [StyleSection(section_ref=i, visual_preset="orbits", intensity=0.5) for i in range(4)]})
+    assert client.put(f"/projects/{pid}/style-plan", json=plan.model_dump(by_alias=True)).status_code == 200
+    assert client.put(f"/projects/{pid}/storyboard", json=Storyboard(scenes=[Scene(section_ref=i, setting="road") for i in range(4)]).model_dump()).status_code == 200
+    client.put(f"/projects/{pid}/section-descriptions", json=["a", "b", "c", "d"])
+
+    # The song is analysed again and comes back with two fewer sections.
+    monkeypatch.setattr(main.pipeline, "run", lambda path, project, job: (path / "analysis.json").write_text(_analysis(2).model_dump_json()))
+    assert client.post(f"/projects/{pid}/process").status_code == 202
+    for _ in range(100):
+        if client.get(f"/projects/{pid}/process").json()["state"] in ("done", "error"):
+            break
+        time.sleep(0.05)
+    assert client.get(f"/projects/{pid}/process").json()["state"] == "done"
+
+    board = client.get(f"/projects/{pid}/storyboard").json()
+    assert [s["section_ref"] for s in board["scenes"]] == [0, 1]
+    assert [s["section_ref"] for s in client.get(f"/projects/{pid}/style-plan").json()["sections"]] == [0, 1]
+    assert client.get(f"/projects/{pid}").json()["section_descriptions"] == ["a", "b"]
+    assert client.put(f"/projects/{pid}/storyboard", json=board).status_code == 200  # no longer rejected

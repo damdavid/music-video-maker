@@ -546,13 +546,31 @@ def render_video(project_id: str, clip: bool = False) -> FileResponse:
     return FileResponse(path, media_type="video/mp4", filename=f"{safe}{' (preview)' if clip else ''}.mp4")
 
 
+def _prune_to_sections(project_id: str) -> None:
+    """After a re-analysis the section count can drop; scenes, plan entries and descriptions beyond it would be unsaveable."""
+    n = len(get_analysis(project_id).sections)
+    plan, board = _optional_plan(project_id), _optional_storyboard(project_id)
+    with _editing(project_id) as project:
+        new_plan, new_board, project.section_descriptions = section_edits.prune_to(n, plan, board, project.section_descriptions)
+    if plan and new_plan != plan:
+        _write(project_id, "style_plan.json", new_plan, by_alias=True)
+    if board and new_board != board:
+        with illustrate.board_lock:
+            _write(project_id, "storyboard.json", new_board)
+
+
 @app.post("/projects/{project_id}/process", status_code=202)
 def start_process(project_id: str) -> ProcessStatus:
     """Analyzes the audio and, if there are lyrics and lyric video is on, separates vocals and aligns them."""
     project = _load(project_id)
     d = _dir(project_id)
+
+    def work(job: jobs.ProcessJob) -> None:
+        pipeline.run(d, project, job)
+        _prune_to_sections(project_id)
+
     try:
-        job = jobs.start(project_id, lambda j: pipeline.run(d, project, j))
+        job = jobs.start(project_id, work)
     except jobs.Busy as e:
         raise HTTPException(409, str(e)) from e
     return job.status()

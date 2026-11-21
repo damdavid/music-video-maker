@@ -68,3 +68,19 @@ class TestRemap:
         assert [(s.section_ref, s.setting) for s in sections.remap_storyboard(board, e).scenes] == [(0, "shore")]
         assert sections.remap_descriptions(["a", "b"], e) == ["b"]
         assert sections.remap_descriptions(["a"], edits((0, 10, 0), (10, 20, 0), (20, 30, None))) == ["a", "a", ""]
+
+
+class TestPrune:
+    def test_drops_scenes_plan_entries_and_descriptions_beyond_the_section_count(self):
+        board = Storyboard(scenes=[Scene(section_ref=i, setting="road") for i in range(4)])
+        p = plan()
+        p.sections.extend(StyleSection(section_ref=i, visual_preset="orbits", intensity=0.5) for i in (2, 3))
+        new_plan, new_board, descriptions = sections.prune_to(2, p, board, ["a", "b", "c", "d"])
+        assert [s.section_ref for s in new_plan.sections] == [0, 1]
+        assert [s.section_ref for s in new_board.scenes] == [0, 1]
+        assert descriptions == ["a", "b"]
+
+    def test_leaves_everything_alone_when_nothing_is_out_of_range_or_missing(self):
+        board = Storyboard(scenes=[Scene(section_ref=0, setting="road")])
+        assert sections.prune_to(3, None, board, ["a"]) == (None, board, ["a"])
+        assert sections.prune_to(3, None, None, []) == (None, None, [])
