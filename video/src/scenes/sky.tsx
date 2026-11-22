@@ -3,6 +3,7 @@ import type { Setting, TimeOfDay, Weather } from "../../../shared/types";
 import { accent, brightestAccent, foreground, mix } from "../color";
 import { wobble } from "../motion";
 import { mulberry32 } from "../rng";
+import { dropOpacity, type WeatherMood } from "./weatherMusic";
 
 export type SceneColors = {
   skyTop: string;
@@ -98,9 +99,9 @@ export const Sky = ({ uid, w, h, hz, t, c, seed, bleed }: SkyProps) => {
   );
 };
 
-type WeatherProps = { uid: string; weather: Weather; w: number; h: number; t: number; c: SceneColors; seed: number };
+type WeatherProps = { uid: string; weather: Weather; w: number; h: number; t: number; c: SceneColors; seed: number; /** What the music asks for (see weatherMusic.ts). */ mood?: WeatherMood };
 
-export const WeatherOverlay = ({ uid, weather, w, h, t, c, seed }: WeatherProps) => {
+export const WeatherOverlay = ({ uid, weather, w, h, t, c, seed, mood = { amount: 0.7, gust: 0 } }: WeatherProps) => {
   const drops = useMemo(() => {
     const rand = mulberry32(seed ^ 0x165667b1);
     return Array.from({ length: weather === "rain" ? 150 : 90 }, () => ({ x: rand(), y: rand(), s: 0.7 + rand() * 0.6, ph: rand() * 6.28 }));
@@ -112,7 +113,7 @@ export const WeatherOverlay = ({ uid, weather, w, h, t, c, seed }: WeatherProps)
         <defs>
           <linearGradient id={`${uid}-fog`} x1="0" y1="0" x2="0" y2="1">
             <stop offset="0" stopColor={c.fg} stopOpacity={0} />
-            <stop offset="0.5" stopColor={c.fg} stopOpacity={0.28} />
+            <stop offset="0.5" stopColor={c.fg} stopOpacity={0.12 + 0.2 * mood.amount} />
             <stop offset="1" stopColor={c.fg} stopOpacity={0} />
           </linearGradient>
         </defs>
@@ -126,8 +127,9 @@ export const WeatherOverlay = ({ uid, weather, w, h, t, c, seed }: WeatherProps)
       <g stroke={c.fg} strokeWidth={1.4} opacity={0.4} strokeLinecap="round">
         {drops.map((d, i) => {
           const y = (((d.y + t * 1.1 * d.s) % 1) + 1) % 1;
-          const x = d.x * w - y * h * 0.08;
-          return <line key={i} x1={x} y1={y * h} x2={x - h * 0.012} y2={y * h + h * 0.035 * d.s} />;
+          // A gust leans the rain over.
+          const x = d.x * w - y * h * (0.08 + 0.06 * mood.gust);
+          return <line key={i} x1={x} y1={y * h} x2={x - h * 0.012 * (1 + 2 * mood.gust)} y2={y * h + h * 0.035 * d.s} opacity={dropOpacity(i, drops.length, mood.amount)} />;
         })}
       </g>
     );
@@ -135,7 +137,7 @@ export const WeatherOverlay = ({ uid, weather, w, h, t, c, seed }: WeatherProps)
     <g fill={c.fg} opacity={0.75}>
       {drops.map((d, i) => {
         const y = (((d.y + t * 0.09 * d.s) % 1) + 1) % 1;
-        return <circle key={i} cx={d.x * w + Math.sin(t * 0.8 + d.ph) * 18} cy={y * h} r={1.2 + d.s * 1.4} />;
+        return <circle key={i} cx={d.x * w + Math.sin(t * 0.8 + d.ph) * 18 * (0.6 + 0.8 * mood.amount) + 30 * mood.gust * d.s} cy={y * h} r={1.2 + d.s * 1.4} opacity={dropOpacity(i, drops.length, mood.amount)} />;
       })}
     </g>
   );

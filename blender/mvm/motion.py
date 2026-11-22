@@ -163,6 +163,28 @@ def reach(c: Ctx) -> Pose:
     return Pose(lean=10 + b, head=-6, arm_r=(112 + 4 * b, 4 + 3 * b), arm_l=(-22, 14), leg_r=(24, -10), leg_l=(-16, -6), yaw=-10, twist=6)
 
 
+def point(c: Ctx) -> Pose:
+    b = math.sin(c.t / 2.8 * TAU)
+    return Pose(lean=3 + 0.5 * b + nod(c, 2), head=1, arm_r=(86 + 2 * b, 4), arm_l=(4, 8), leg_r=(6, -6), leg_l=(-4, -2), yaw=-6)
+
+
+def lean(c: Ctx) -> Pose:
+    b = math.sin(c.t / 3.8 * TAU)
+    return Pose(lean=-12 + 0.6 * b, head=4 + nod(c, 3), arm_l=(8, 36), arm_r=(-2, 24), leg_r=(14, -6), leg_l=(-6, -2))
+
+
+def cross_arms(c: Ctx) -> Pose:
+    b = math.sin(c.t / 3.4 * TAU)
+    return Pose(lean=3 + 0.4 * b, head=7, arm_r=(34, 118), arm_l=(28, 124))
+
+
+def cheer(c: Ctx) -> Pose:
+    s = math.sin(math.pi * c.beat)
+    bounce = abs(s)
+    return Pose(y=0.022 * bounce * (0.6 + 0.8 * c.energy), lean=-2, head=-7 + 2 * s, arm_r=(166 + 8 * s, 6), arm_l=(160 - 8 * s, 6),
+                leg_r=(4 * s, -6 - 10 * (1 - bounce)), leg_l=(-4 * s, -6 - 10 * bounce))
+
+
 def slump(c: Ctx) -> Pose:
     b = math.sin(c.t / 4.2 * TAU)
     return Pose(lean=15 + b, head=30 + 2 * b, arm_l=(10, 10), arm_r=(2, 8), leg_l=(4, -10), leg_r=(-3, -8))
@@ -238,9 +260,13 @@ ACTIONS = {
     "dance": dance,
     "jump": jump,
     "slump": slump,
+    "point": point,
+    "lean": lean,
+    "cross_arms": cross_arms,
+    "cheer": cheer,
 }
 # How much each action feels the beat; dancing and jumping carry their own accents.
-GROOVE = {"idle": 1.0, "sit": 0.5, "wave": 1.0, "look_up": 0.5, "reach": 0.6, "slump": 0.25, "walk": 0.5, "run": 0.3}
+GROOVE = {"idle": 1.0, "sit": 0.5, "wave": 1.0, "look_up": 0.5, "reach": 0.6, "slump": 0.25, "walk": 0.5, "run": 0.3, "point": 0.6, "lean": 0.4, "cross_arms": 0.3}
 LAG_UPPER, LAG_LOWER, LAG_HAIR = 0.045, 0.09, 0.16
 
 

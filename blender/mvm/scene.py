@@ -7,16 +7,19 @@ import zlib
 import bpy
 from mathutils import Vector
 
-from . import body, camera, figure, grade as grading, lyrics as lyric_text, motion, rules, world
-from .timing import beat_period, beat_phase, bars_per_shot, eye_open, mouth_open, plan_shots, section_spans, title_window, video_size, Shot
+from . import body, camera, figure, grade as grading, lyrics as lyric_text, motion, rules, wear, weather as precipitation, world
+from .timing import beat_period, beat_phase, bars_per_shot, eye_open, hash_noise, mouth_open, plan_shots, section_spans, title_window, video_size, Shot
 
 PLACE_X = {"left": -2.4, "center": 0.0, "right": 2.4}
 # Expression a character takes from what they are doing when the storyboard doesn't set one.
-BY_ACTION = {"idle": "neutral", "walk": "neutral", "run": "determined", "sit": "calm", "wave": "happy", "look_up": "surprised", "reach": "sad", "dance": "happy", "jump": "happy", "slump": "sad"}
+BY_ACTION = {"idle": "neutral", "walk": "neutral", "run": "determined", "sit": "calm", "wave": "happy", "look_up": "surprised", "reach": "sad", "dance": "happy", "jump": "happy", "slump": "sad", "point": "determined", "lean": "calm", "cross_arms": "sad", "cheer": "happy"}
 CROWD_INK = "#15151c"
 MAX_CROWD = 6  # every figure is keyed on every frame, so the crowd is kept lighter than the other renderer's
 CROWD_HATS = (None, None, "cowboy", "beanie", "cap", "top_hat", "beret", "sun_hat")
 RIM_WATTS = 900.0
+# What a leaning figure can lean on, and the y each is built at (so it can be moved to stand behind them).
+LEANABLE = ("signpost", "lamp", "tree", "fence")
+LEAN_BASE_Y = {"lamp": 2.2, "signpost": 2.2, "fence": 2.4, "tree": 3.0}
 
 
 def facing_signs(chars: list[dict]) -> list[float]:
@@ -85,6 +88,8 @@ def build(props: dict, seconds: float | None, emit):
     lines = (props.get("lyrics") or {}).get("lines") or []
     auto_cuts = settings.get("auto_cuts", True)
     moods = board.get("moods") or []
+    cues = board.get("cues") or []
+    onset, onset_rate = analysis.get("onset_strength") or [], analysis.get("fps") or 30
     crowds_on = settings.get("crowds", True)
     palette_grade = grading.Grade(scene)
 
@@ -114,9 +119,21 @@ def build(props: dict, seconds: float | None, emit):
 
         def make():
             world.build_earth(origin, setting, weather)
-            world.build_weather(origin, weather, cam.obj, seed + i)
+            sceneinfo["weather"] = world.build_weather(origin, weather, cam.obj, seed + i)
             world.SETTINGS[setting](origin, tod, rng, weather)
-            for pi, kind in enumerate(sc.get("props") or []):
+            props_here = list(sc.get("props") or [])
+            # Someone leaning has something behind them: one of the scene's own props, else a lamp.
+            signs_here = facing_signs(chars_here)
+            for c, sign in zip(chars_here, signs_here):
+                if c.get("action") != "lean":
+                    continue
+                kind = next((k for k in props_here if k in LEANABLE), "lamp")
+                if kind in props_here:
+                    props_here.remove(kind)
+                x = PLACE_X[c.get("placement") or "center"] - sign * 0.3
+                for obj in world.build_prop(kind, origin, x, rng):
+                    obj.location.y -= LEAN_BASE_Y[kind]
+            for pi, kind in enumerate(props_here):
                 world.build_prop(kind, origin, (-4.0, 0.0, 4.0, 8.0)[pi % 4], rng)
             members = []
             chars = sc.get("characters") or []
@@ -126,10 +143,20 @@ def build(props: dict, seconds: float | None, emit):
                     continue
                 hair, outfit = ch.get("hair") or "short", ch.get("outfit") or "tee"
                 gender = ch.get("gender") or body.infer_gender(hair, outfit)
-                fig = figure.Figure(f"s{i}c{j}", ch.get("colors") or DEFAULT_COLORS, hair, outfit, gender, body.HEIGHT[gender] * (ch.get("build") or 1.0),
-                                    hat=ch.get("hat"), accessories=ch.get("accessories") or [], holding=c.get("holding"))
+                # A costume change for this scene: what the scene sets replaces the cast's own, the rest stays.
+                worn = c.get("wear") or {}
+                hat = ch.get("hat") if worn.get("hat") is None else (None if worn["hat"] == "none" else worn["hat"])
+                accessories = ch.get("accessories") or [] if worn.get("accessories") is None else worn["accessories"]
+                colors = ch.get("colors") or DEFAULT_COLORS
+                fig = figure.Figure(f"s{i}c{j}", colors, hair, worn.get("outfit") or outfit, gender, body.HEIGHT[gender] * (ch.get("build") or 1.0),
+                                    hat=hat, accessories=accessories, holding=c.get("holding"))
+                if not members:  # the lead can be handed things at lyric lines
+                    for cue in cues:
+                        if a - 0.1 <= cue["at"] <= b and cue.get("holding"):
+                            fig.add_held(cue["holding"], colors)
                 members.append((fig, c, j))
             sceneinfo["members"] = members
+            sceneinfo["symbols"] = {name: wear.SymbolRig(name) for name in {cue["symbol"] for cue in cues if a - 0.1 <= cue["at"] <= b and cue.get("symbol")}}
             # Background figures in flat dark silhouettes, facing the lead and moving with the music.
             ink = dict(body=CROWD_INK, hair=CROWD_INK, top=CROWD_INK, bottom=CROWD_INK, accent=CROWD_INK)
             crowd = []
@@ -162,7 +189,7 @@ def build(props: dict, seconds: float | None, emit):
         shots = plan_shots(a, b, downbeats, bar_len, bars_per_shot(intensity), lead_action, seed + i)
         if not auto_cuts:
             shots = [Shot(a, b, shots[0].kind)]
-        runs.append(dict(i=i, a=a, b=b, f0=f0, f1=f1, origin=origin, setting=setting, members=members, crowd=sceneinfo["crowd"], rim=sceneinfo["rim"], tod=tod, grade=(styles.get(i) or {}).get("grade") or "none", intensity=intensity, shots=shots, fill=world.FILL[tod] * (0.3 if setting == "room" else 1.0)))
+        runs.append(dict(i=i, a=a, b=b, f0=f0, f1=f1, origin=origin, setting=setting, members=members, crowd=sceneinfo["crowd"], weather=sceneinfo["weather"], symbols=sceneinfo["symbols"], rim=sceneinfo["rim"], tod=tod, grade=(styles.get(i) or {}).get("grade") or "none", intensity=intensity, shots=shots, fill=world.FILL[tod] * (0.3 if setting == "room" else 1.0)))
 
     if prev_tod is not None and runs:
         sky.key(min(runs[-1]["f1"], n_frames) - 1, *prev_tod)
@@ -206,16 +233,28 @@ def build(props: dict, seconds: float | None, emit):
             beat = beat_phase(beats, t, bpm)
             beat_len = beat_period(analysis)
             lead_pos = Vector((0.0, r["origin"][1], 0.0))
+            cs = rules.cues_at(cues, t)
+            # Everyone's pose first: a figure looking at another follows that one's jumps with their eyes.
+            posed = []
+            for k, (fig, c, j) in enumerate(members):
+                action = c.get("action", "idle")
+                ctx = motion.Ctx(t=t, beat=beat, beat_len=beat_len, energy=energy, seed=seed, variant=j)
+                pose = motion.pose_with_entrance(action, ctx, t - r["a"] - j * motion.ENTER_STAGGER)
+                # A lyric cue can hand the lead something in place of what the scene gives them.
+                holding = cs["holding"] if k == 0 and cs["holding"] else c.get("holding")
+                if holding:
+                    pose = motion.hold_pose(pose, holding, t, beat, energy)
+                posed.append((pose, holding))
             for k, (fig, c, j) in enumerate(members):
                 action = c.get("action", "idle")
                 x0, sign, speed = paths[k]
-                ctx = motion.Ctx(t=t, beat=beat, beat_len=beat_len, energy=energy, seed=seed, variant=j)
-                pose = motion.pose_with_entrance(action, ctx, t - r["a"] - j * motion.ENTER_STAGGER)
-                if c.get("holding"):
-                    pose = motion.hold_pose(pose, c["holding"], t, beat, energy)
+                pose, holding = posed[k]
+                fig.hold(f, holding)
                 # What the lyrics call for, else the scene's own expression, else what the action suggests; the music turns it up or down.
                 mood = (rules.mood_at(moods, t) if k == 0 else None) or c.get("expression") or BY_ACTION.get(action, "neutral")
-                fig.apply(pose, mouth_open(lines, t) if k == 0 and lines else 0.0, eye_open(t, j), mood, rules.expression_strength(energy))
+                target = next((q for q, m in enumerate(members) if m[1]["character_id"] == c.get("looks_at") and q != k), None) if c.get("looks_at") not in (None, "camera") else None
+                look = rules.eye_look(lambda ch, rate, j=j: hash_noise(seed + 40 + 7 * j + ch, t * rate * math.tau), action, c.get("looks_at") == "camera", pose.y, posed[target][0].y if target is not None else None)
+                fig.apply(pose, mouth_open(lines, t) if k == 0 and lines else 0.0, eye_open(t, j), mood, rules.expression_strength(energy), look, -sign * 22.0 if c.get("looks_at") == "camera" else None)
                 x = x0 + sign * speed * (t - r["a"])
                 fig.root.location = (x, r["origin"][1] + (j - (len(members) - 1) / 2) * 0.9, 0.0)
                 # Looking at the camera turns the figure most of the way round to face it.
@@ -236,6 +275,18 @@ def build(props: dict, seconds: float | None, emit):
             height = members[0][0].h if members else 1.75
             action = members[0][1].get("action", "idle") if members else "idle"
             cam.key(f, t, r["shots"], azimuths, lead_pos, height, action, energy, seed, fill=r["fill"], new_scene=(f == r["f0"]))
+            # The lyric symbol beside the lead's head, popping in, floating up and fading; turned to face the camera.
+            for name, rig in r["symbols"].items():
+                if cs["symbol"] and cs["symbol"][0] == name and members:
+                    age = cs["symbol"][1]
+                    shrink = rules.symbol_size(age)
+                    side = signs[0] * 0.3 * height
+                    pos = (lead_pos.x + side, lead_pos.y, height * (1.12 + 0.28 * age / rules.SYMBOL_S))
+                    yaw = math.atan2(cam.obj.location.x - pos[0], -(cam.obj.location.y - pos[1]))
+                    rig.place(f, pos, height * 0.26 * shrink, yaw)
+                else:
+                    rig.hide(f)
+            precipitation.key_amount(r["weather"], rules.weather_mood(energy, smoothed(onset, onset_rate, t)), f)
             # Light that follows the song: an edge of light behind the lead, a lift on each beat, and the section's colour grade.
             light = rules.lighting_at(r["tod"], rules.beat_envelope(beats, t), rules.beat_envelope(downbeats, t), energy)
             tint = world.TIME_OF_DAY[r["tod"]]["color"]

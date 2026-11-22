@@ -1048,6 +1048,68 @@
       "title": "CustomObject",
       "type": "object"
     },
+    "LineCue": {
+      "description": "Something that happens at a lyric line, keyed by time like a mood: a symbol pops up beside the lead, and/or they take something in hand.",
+      "properties": {
+        "at": {
+          "minimum": 0,
+          "title": "At",
+          "type": "number"
+        },
+        "symbol": {
+          "anyOf": [
+            {
+              "enum": [
+                "heart",
+                "star",
+                "rose",
+                "key",
+                "door",
+                "moon",
+                "bird",
+                "clock"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Symbol"
+        },
+        "holding": {
+          "anyOf": [
+            {
+              "enum": [
+                "umbrella",
+                "suitcase",
+                "microphone",
+                "flowers",
+                "lantern",
+                "book",
+                "guitar",
+                "phone",
+                "flag",
+                "balloon",
+                "cup"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Holding"
+        }
+      },
+      "required": [
+        "at"
+      ],
+      "title": "LineCue",
+      "type": "object"
+    },
     "LineMood": {
       "description": "How the lead looks from this moment on, until the next mood: set per lyric line, keyed by time so it survives line edits.",
       "properties": {
@@ -1227,7 +1289,11 @@
             "reach",
             "dance",
             "jump",
-            "slump"
+            "slump",
+            "point",
+            "lean",
+            "cross_arms",
+            "cheer"
           ],
           "title": "Action",
           "type": "string"
@@ -1307,6 +1373,17 @@
           ],
           "default": null,
           "title": "Looks At"
+        },
+        "wear": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Wear"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
         }
       },
       "required": [
@@ -1336,6 +1413,80 @@
         "object_id"
       ],
       "title": "SceneObject",
+      "type": "object"
+    },
+    "Wear": {
+      "description": "What a character wears in one scene instead of their usual look; a field left out keeps the cast's own.",
+      "properties": {
+        "outfit": {
+          "anyOf": [
+            {
+              "enum": [
+                "tee",
+                "coat",
+                "dress",
+                "hoodie",
+                "jacket",
+                "suit",
+                "overalls"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Outfit"
+        },
+        "hat": {
+          "anyOf": [
+            {
+              "enum": [
+                "cowboy",
+                "beanie",
+                "cap",
+                "top_hat",
+                "beret",
+                "sun_hat"
+              ],
+              "type": "string"
+            },
+            {
+              "const": "none",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Hat"
+        },
+        "accessories": {
+          "anyOf": [
+            {
+              "items": {
+                "enum": [
+                  "glasses",
+                  "sunglasses",
+                  "scarf",
+                  "headphones",
+                  "backpack"
+                ],
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Accessories"
+        }
+      },
+      "title": "Wear",
       "type": "object"
     },
     "Storyboard": {
@@ -1377,6 +1528,13 @@
             "$ref": "#/$defs/LineMood"
           },
           "title": "Moods",
+          "type": "array"
+        },
+        "cues": {
+          "items": {
+            "$ref": "#/$defs/LineCue"
+          },
+          "title": "Cues",
           "type": "array"
         }
       },

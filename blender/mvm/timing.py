@@ -81,6 +81,10 @@ KINDS = {
     "look_up": ["medium", "close"],
     "reach": ["wide", "medium"],
     "slump": ["medium", "close"],
+    "point": ["wide", "medium"],
+    "lean": ["wide", "medium", "close"],
+    "cross_arms": ["medium", "close"],
+    "cheer": ["wide", "medium"],
 }
 MIN_SHOT_S = 1.5
 

@@ -14,6 +14,10 @@ const BY_ACTION: Record<Action, Mood> = {
   dance: "happy",
   jump: "happy",
   slump: "sad",
+  point: "determined",
+  lean: "calm",
+  cross_arms: "sad",
+  cheer: "happy",
 };
 
 export const defaultExpression = (action: Action): Mood => BY_ACTION[action];
@@ -57,10 +61,12 @@ type Props = {
   frontal?: boolean;
   /** How strongly the expression shows (1 is the drawn default): the music turns it up or down. */
   strength?: number;
+  /** Where the eyes look (see gaze.ts); the pupils shift a little that way. */
+  look?: { x: number; y: number };
 };
 
 /** A three-quarter face: eyes shifted toward the facing side, brows, cheeks and a mouth. */
-export const Face = ({ mood, cx, cy, r, color, t, skin, open: sing = 0, frontal = false, strength = 1 }: Props) => {
+export const Face = ({ mood, cx, cy, r, color, t, skin, open: sing = 0, frontal = false, strength = 1, look }: Props) => {
   const spread = frontal ? 0.3 : 0.22;
   const eyes = [cx - spread * r, cx + spread * r];
   const ey = cy - 0.05 * r;
@@ -72,7 +78,7 @@ export const Face = ({ mood, cx, cy, r, color, t, skin, open: sing = 0, frontal 
   // The far eye is foreshortened.
   const dots = (size: number) =>
     eyes.map((x, i) => (
-      <g key={i}>
+      <g key={i} transform={look ? `translate(${(look.x * 0.045 * r).toFixed(4)} ${(look.y * 0.04 * r).toFixed(4)})` : undefined}>
         <ellipse cx={x} cy={ey} rx={size * r * (i === 0 && !frontal ? 0.85 : 1)} ry={size * r * 1.35 * lid} fill={color} />
         {lid > 0.5 && <circle cx={x + 0.025 * r} cy={ey - 0.035 * r} r={0.028 * r} fill="#ffffff" opacity={0.85} />}
       </g>

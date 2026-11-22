@@ -28,6 +28,10 @@ const KINDS: Record<Action, ShotKind[]> = {
   look_up: ["medium", "close"],
   reach: ["wide", "medium"],
   slump: ["medium", "close"],
+  point: ["wide", "medium"],
+  lean: ["wide", "medium", "close"],
+  cross_arms: ["medium", "close"],
+  cheer: ["wide", "medium"],
 };
 
 /** Head height as a fraction of a standing figure, which the close shot aims at. */

@@ -151,6 +151,8 @@ class Figure:
             wear.add_hat(self, hat, colors)
         wear.add_accessories(self, list(accessories or ()), colors)
         self.held = wear.Held(self, holding, colors) if holding else None
+        self.extra_held: dict[str, wear.Held] = {}
+        self._holding = "?"  # nothing decided yet, so the first hold() keys everything
 
     def gender_scale(self) -> float:
         return body.GENDER[self.gender]["shoulder"]
@@ -356,7 +358,24 @@ class Figure:
         r = Euler([math.radians(a) for a in euler_deg], "XYZ").to_matrix()
         pb.rotation_quaternion = (m.inverted() @ r @ m).to_quaternion()
 
-    def apply(self, p: Pose, mouth_open: float = 0.0, blink: float = 1.0, mood: str = "neutral", strength: float = 1.0) -> None:
+    def add_held(self, kind: str, colors: dict) -> None:
+        """Builds an item that may be handed to this figure later (see hold())."""
+        if kind != (self.held.kind if self.held else None) and kind not in self.extra_held:
+            self.extra_held[kind] = wear.Held(self, kind, colors)
+
+    def helds(self):
+        return ([self.held] if self.held else []) + list(self.extra_held.values())
+
+    def hold(self, frame: int, kind: str | None) -> None:
+        """What is in the hand from this frame on; items not held are hidden, and a guitar's neck hand reaches out."""
+        if kind == self._holding:
+            return
+        self._holding = kind
+        for h in self.helds():
+            h.show(frame, h.kind == kind)
+        self.abduct["L"] = wear.GUITAR_ABDUCT if kind == "guitar" else 7.0
+
+    def apply(self, p: Pose, mouth_open: float = 0.0, blink: float = 1.0, mood: str = "neutral", strength: float = 1.0, look: tuple[float, float] = (0.35, 0.0), eye_yaw: float | None = None) -> None:
         d = math.radians
         H = self.h
         dz = (stance_height(p) - REST_Z) * H
@@ -391,8 +410,13 @@ class Figure:
         lower_z, cavity_z = self.lip_rest
         self.lower_lip.location.z = lower_z - jaw_drop
         self.cavity.scale.z = cavity_z + jaw_drop * 0.7
-        if self.held is not None:
-            self.held.update(p)
+        for h in self.helds():
+            h.update(p)
+        # The eyes turn in their sockets: up or down with the look, a little sideways (or round toward the camera).
+        pitch = math.radians(look[1] * 16.0)
+        yaw = math.radians(14.0 * (look[0] - 0.6)) if eye_yaw is None else math.radians(eye_yaw)
+        for eye in self.eyes:
+            eye.rotation_euler = (pitch, 0.0, yaw)
         if self.skirt is not None:
             spread = 1 + 0.12 * min(1.0, abs(p.leg_l[0] - p.leg_r[0]) / 40)
             self.skirt.scale.x = spread
@@ -414,7 +438,9 @@ class Figure:
         for brow in self.brows:
             brow.keyframe_insert("location", frame=frame, index=2)
             brow.keyframe_insert("rotation_euler", frame=frame, index=1)
-        if self.held is not None:
-            self.held.key(frame)
+        for h in self.helds():
+            h.key(frame)
+        for eye in self.eyes:
+            eye.keyframe_insert("rotation_euler", frame=frame)
         if self.skirt is not None:
             self.skirt.keyframe_insert("scale", frame=frame, index=0)

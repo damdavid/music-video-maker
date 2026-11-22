@@ -164,25 +164,7 @@ export type Description1 = string;
 export type Size = "small" | "medium" | "large";
 export type Svg1 = string | null;
 export type At = number;
-export type Expression = "neutral" | "happy" | "sad" | "surprised" | "calm" | "determined";
-export type SectionRef1 = number;
-/**
- * One-line storyboard note
- */
-export type Description2 = string;
-export type Setting = "road" | "city" | "field" | "room" | "shore" | "forest" | "void";
-export type TimeOfDay = "dawn" | "day" | "dusk" | "night";
-export type Weather = "clear" | "rain" | "snow" | "fog";
-/**
- * @maxItems 3
- */
-export type Characters =
-  [] | [SceneCharacter] | [SceneCharacter, SceneCharacter] | [SceneCharacter, SceneCharacter, SceneCharacter];
-export type CharacterId = string;
-export type Action = "idle" | "walk" | "run" | "sit" | "wave" | "look_up" | "reach" | "dance" | "jump" | "slump";
-export type Expression1 = ("neutral" | "happy" | "sad" | "surprised" | "calm" | "determined") | null;
-export type Placement = "left" | "center" | "right";
-export type Facing = "left" | "right";
+export type Symbol = ("heart" | "star" | "rose" | "key" | "door" | "moon" | "bird" | "clock") | null;
 export type Holding =
   | (
       | "umbrella"
@@ -198,7 +180,59 @@ export type Holding =
       | "cup"
     )
   | null;
+export type At1 = number;
+export type Expression = "neutral" | "happy" | "sad" | "surprised" | "calm" | "determined";
+export type SectionRef1 = number;
+/**
+ * One-line storyboard note
+ */
+export type Description2 = string;
+export type Setting = "road" | "city" | "field" | "room" | "shore" | "forest" | "void";
+export type TimeOfDay = "dawn" | "day" | "dusk" | "night";
+export type Weather = "clear" | "rain" | "snow" | "fog";
+/**
+ * @maxItems 3
+ */
+export type Characters =
+  [] | [SceneCharacter] | [SceneCharacter, SceneCharacter] | [SceneCharacter, SceneCharacter, SceneCharacter];
+export type CharacterId = string;
+export type Action =
+  | "idle"
+  | "walk"
+  | "run"
+  | "sit"
+  | "wave"
+  | "look_up"
+  | "reach"
+  | "dance"
+  | "jump"
+  | "slump"
+  | "point"
+  | "lean"
+  | "cross_arms"
+  | "cheer";
+export type Expression1 = ("neutral" | "happy" | "sad" | "surprised" | "calm" | "determined") | null;
+export type Placement = "left" | "center" | "right";
+export type Facing = "left" | "right";
+export type Holding1 =
+  | (
+      | "umbrella"
+      | "suitcase"
+      | "microphone"
+      | "flowers"
+      | "lantern"
+      | "book"
+      | "guitar"
+      | "phone"
+      | "flag"
+      | "balloon"
+      | "cup"
+    )
+  | null;
 export type LooksAt = string | null;
+export type Outfit1 = ("tee" | "coat" | "dress" | "hoodie" | "jacket" | "suit" | "overalls") | null;
+export type Hat1 = ("cowboy" | "beanie" | "cap" | "top_hat" | "beret" | "sun_hat") | "none" | null;
+export type Accessories1 = ("glasses" | "sunglasses" | "scarf" | "headphones" | "backpack")[] | null;
 /**
  * Background figures
  */
@@ -259,6 +293,7 @@ export type Objects1 =
   | [CustomObject, CustomObject, CustomObject, CustomObject, CustomObject, CustomObject, CustomObject, CustomObject];
 export type Scenes = Scene[];
 export type Moods = LineMood[];
+export type Cues = LineCue[];
 export type Start3 = number;
 export type End3 = number;
 export type Label1 = string;
@@ -491,13 +526,24 @@ export interface CustomObject {
   svg?: Svg1;
 }
 /**
+ * Something that happens at a lyric line, keyed by time like a mood: a symbol pops up beside the lead, and/or they take something in hand.
+ *
+ * This interface was referenced by `Schema`'s JSON-Schema
+ * via the `definition` "LineCue".
+ */
+export interface LineCue {
+  at: At;
+  symbol?: Symbol;
+  holding?: Holding;
+}
+/**
  * How the lead looks from this moment on, until the next mood: set per lyric line, keyed by time so it survives line edits.
  *
  * This interface was referenced by `Schema`'s JSON-Schema
  * via the `definition` "LineMood".
  */
 export interface LineMood {
-  at: At;
+  at: At1;
   expression: Expression;
 }
 /**
@@ -527,8 +573,20 @@ export interface SceneCharacter {
   expression?: Expression1;
   placement?: Placement;
   facing?: Facing;
-  holding?: Holding;
+  holding?: Holding1;
   looks_at?: LooksAt;
+  wear?: Wear | null;
+}
+/**
+ * What a character wears in one scene instead of their usual look; a field left out keeps the cast's own.
+ *
+ * This interface was referenced by `Schema`'s JSON-Schema
+ * via the `definition` "Wear".
+ */
+export interface Wear {
+  outfit?: Outfit1;
+  hat?: Hat1;
+  accessories?: Accessories1;
 }
 /**
  * This interface was referenced by `Schema`'s JSON-Schema
@@ -548,6 +606,7 @@ export interface Storyboard {
   objects?: Objects1;
   scenes?: Scenes;
   moods?: Moods;
+  cues?: Cues;
 }
 /**
  * One section of the edited song timeline. Sections must tile the song: the first starts at 0, each starts where the last ends.

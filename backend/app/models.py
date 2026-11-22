@@ -20,7 +20,9 @@ Illustration = Literal["library", "freeform"]
 Setting = Literal["road", "city", "field", "room", "shore", "forest", "void"]
 TimeOfDay = Literal["dawn", "day", "dusk", "night"]
 Weather = Literal["clear", "rain", "snow", "fog"]
-Action = Literal["idle", "walk", "run", "sit", "wave", "look_up", "reach", "dance", "jump", "slump"]
+Action = Literal["idle", "walk", "run", "sit", "wave", "look_up", "reach", "dance", "jump", "slump", "point", "lean", "cross_arms", "cheer"]
+# A small picture that pops up beside the lead when its word is sung.
+Symbol = Literal["heart", "star", "rose", "key", "door", "moon", "bird", "clock"]
 # Empty in a scene means "pick from the action" (the renderer's default).
 Expression = Literal["neutral", "happy", "sad", "surprised", "calm", "determined"]
 Prop = Literal["lamp", "bench", "tree", "house", "suitcase", "campfire", "fence", "signpost"]
@@ -219,6 +221,22 @@ class SceneObject(BaseModel):
     placement: Placement = "right"
 
 
+class Wear(BaseModel):
+    """What a character wears in one scene instead of their usual look; a field left out keeps the cast's own."""
+
+    outfit: Outfit | None = None
+    # "none" takes the cast's hat off.
+    hat: Hat | Literal["none"] | None = None
+    # An empty list takes the cast's accessories off.
+    accessories: list[Accessory] | None = None
+
+    @field_validator("accessories")
+    @classmethod
+    def _at_most_two(cls, v: list[Accessory] | None) -> list[Accessory] | None:
+        # Trimmed rather than rejected: a third accessory from Claude must not fail the whole storyboard.
+        return None if v is None else list(dict.fromkeys(v))[:2]
+
+
 class SceneCharacter(BaseModel):
     character_id: str
     action: Action = "idle"
@@ -228,6 +246,7 @@ class SceneCharacter(BaseModel):
     holding: Held | None = None
     # Who this character looks at: another character's id in the scene (and turns to face), or "camera".
     looks_at: str | None = None
+    wear: Wear | None = None
 
 
 class Character(CharacterDraft):
@@ -272,12 +291,21 @@ class LineMood(BaseModel):
     expression: Expression
 
 
+class LineCue(BaseModel):
+    """Something that happens at a lyric line, keyed by time like a mood: a symbol pops up beside the lead, and/or they take something in hand."""
+
+    at: float = Field(ge=0)
+    symbol: Symbol | None = None
+    holding: Held | None = None
+
+
 class Storyboard(BaseModel):
     illustration: Illustration = "library"
     cast: list[Character] = Field(default_factory=list, max_length=6)
     objects: list[CustomObject] = Field(default_factory=list, max_length=8)
     scenes: list[Scene] = Field(default_factory=list)
     moods: list[LineMood] = Field(default_factory=list)
+    cues: list[LineCue] = Field(default_factory=list)
 
     def effective_illustration(self, scene: "Scene") -> Illustration:
         return scene.illustration or self.illustration

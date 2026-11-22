@@ -5,7 +5,7 @@ import { pollJob, useAlive } from "./jobs";
 import { Select } from "./Select";
 import { fmtRange } from "./time";
 import { defaultExpression } from "video/src/scenes/face";
-import { ACCESSORIES, ACTIONS, EXPRESSIONS, GENDERS, HAIRS, HATS, HELD, ILLUSTRATIONS, OBJECT_SIZES, OUTFITS, PLACEMENTS, PROP_KINDS, SETTINGS, TIMES, WEATHERS, legacyGender } from "./vocab";
+import { ACCESSORIES, ACTIONS, EXPRESSIONS, GENDERS, HAIRS, HATS, HELD, SYMBOLS, ILLUSTRATIONS, OBJECT_SIZES, OUTFITS, PLACEMENTS, PROP_KINDS, SETTINGS, TIMES, WEATHERS, legacyGender } from "./vocab";
 
 type PropKind = (typeof PROP_KINDS)[number];
 
@@ -98,6 +98,24 @@ export function StoryboardEditor({ projectId, board, sections, sectionDescriptio
       const all = cur.scenes ?? [];
       const next: EScene = { ...(all.find((s) => s.section_ref === i) ?? { section_ref: i, setting: "road" }), ...patch };
       return { ...cur, scenes: [...all.filter((s) => s.section_ref !== i), next].sort((x, y) => x.section_ref - y.section_ref) };
+    });
+  // Lyric cues are keyed by the line's start time, like moods; a cue with nothing left in it is dropped.
+  const cueAt = (at: number) => (b.cues ?? []).find((c) => Math.abs(c.at - at) < 0.02);
+  const setCue = (at: number, patch: Partial<NonNullable<Storyboard["cues"]>[number]>) =>
+    update((cur) => {
+      const was = (cur.cues ?? []).find((c) => Math.abs(c.at - at) < 0.02);
+      const next = { at, symbol: null, holding: null, ...was, ...patch };
+      const rest = (cur.cues ?? []).filter((c) => Math.abs(c.at - at) >= 0.02);
+      return { ...cur, cues: [...rest, ...(next.symbol || next.holding ? [next] : [])].sort((x, y) => x.at - y.at) };
+    });
+  // What a character wears in one scene instead of their usual look; a scene's wear with nothing set is dropped.
+  const setWear = (i: number, ci: number, patch: NonNullable<SceneCharacter["wear"]>) =>
+    setScene(i, {
+      characters: (scenes.find((sc) => sc.section_ref === i)?.characters ?? []).map((x, j) => {
+        if (j !== ci) return x;
+        const wear = { ...(x.wear ?? {}), ...patch };
+        return { ...x, wear: wear.outfit == null && wear.hat == null && wear.accessories == null ? null : wear };
+      }),
     });
   const characterLabel = (id: string) => cast.find((c) => c.id === id)?.name?.trim() || id;
   const objectLabel = (id: string) => objects.find((o) => o.id === id)?.name?.trim() || id;
@@ -379,6 +397,27 @@ export function StoryboardEditor({ projectId, board, sections, sectionDescriptio
                                 label={(v) => (v === "nobody" ? "looks at nobody" : v === "camera" ? "looks at the camera" : `looks at ${characterLabel(v)}`)}
                                 onChange={(v) => setScene(i, { characters: (s.characters ?? []).map((x, j) => (j === ci ? { ...x, looks_at: v === "nobody" ? null : v } : x)) })}
                               />
+                              <Select
+                                aria-label="Outfit this scene"
+                                value={sc.wear?.outfit ?? "cast"}
+                                options={["cast", ...OUTFITS] as const}
+                                label={(v) => (v === "cast" ? "usual outfit" : `wears ${v}`)}
+                                onChange={(v) => setWear(i, ci, { outfit: v === "cast" ? null : v })}
+                              />
+                              <Select
+                                aria-label="Hat this scene"
+                                value={sc.wear?.hat ?? "cast"}
+                                options={["cast", "none", ...HATS] as const}
+                                label={(v) => (v === "cast" ? "usual hat" : v === "none" ? "no hat" : `hat: ${v.replace("_", " ")}`)}
+                                onChange={(v) => setWear(i, ci, { hat: v === "cast" ? null : v })}
+                              />
+                              <Select
+                                aria-label="Accessory this scene"
+                                value={sc.wear?.accessories == null ? "cast" : (sc.wear.accessories[0] ?? "none")}
+                                options={["cast", "none", ...ACCESSORIES] as const}
+                                label={(v) => (v === "cast" ? "usual accessories" : v === "none" ? "no accessories" : v)}
+                                onChange={(v) => setWear(i, ci, { accessories: v === "cast" ? null : v === "none" ? [] : [v] })}
+                              />
                               <button className="btn btn-ghost btn-compact" onClick={() => setScene(i, { characters: (s.characters ?? []).filter((_, j) => j !== ci) })}>Remove</button>
                             </div>
                           ))}
@@ -413,8 +452,8 @@ export function StoryboardEditor({ projectId, board, sections, sectionDescriptio
           </table>
           {lyrics && lyrics.lines.length > 0 && b.cast?.length ? (
             <details>
-              <summary>Expressions by lyric line ({(b.moods ?? []).length} set)</summary>
-              <p className="hint">The lead's face takes this expression from the start of the line, until the next one is set (at most 8 seconds). Leave a line as "scene" to use the scene's own expression.</p>
+              <summary>Expressions, symbols and items by lyric line ({(b.moods ?? []).length + (b.cues ?? []).length} set)</summary>
+              <p className="hint">The lead's face takes the expression from the start of the line, until the next one is set (at most 8 seconds); leave it as "scene" to use the scene's own. A symbol pops up beside the lead for a couple of seconds. An item is put in the lead's hand until a later line gives them another (at most 8 seconds).</p>
               <table className="plan-table">
                 <tbody>
                   {lyrics.lines.map((line, k) => {
@@ -428,6 +467,22 @@ export function StoryboardEditor({ projectId, board, sections, sectionDescriptio
                           <select aria-label={`Expression for line ${k + 1}`} value={mood} onChange={(e) => update((cur) => ({ ...cur, moods: [...(cur.moods ?? []).filter((m) => Math.abs(m.at - at) >= 0.02), ...(e.target.value ? [{ at, expression: e.target.value as NonNullable<Scene["characters"]>[number]["expression"] & string }] : [])].sort((x, y) => x.at - y.at) }))}>
                             <option value="">scene</option>
                             {EXPRESSIONS.map((x) => (
+                              <option key={x} value={x}>{x}</option>
+                            ))}
+                          </select>
+                        </td>
+                        <td>
+                          <select aria-label={`Symbol for line ${k + 1}`} value={cueAt(at)?.symbol ?? ""} onChange={(e) => setCue(at, { symbol: (e.target.value || null) as NonNullable<Storyboard["cues"]>[number]["symbol"] })}>
+                            <option value="">no symbol</option>
+                            {SYMBOLS.map((x) => (
+                              <option key={x} value={x}>{x}</option>
+                            ))}
+                          </select>
+                        </td>
+                        <td>
+                          <select aria-label={`Item for line ${k + 1}`} value={cueAt(at)?.holding ?? ""} onChange={(e) => setCue(at, { holding: (e.target.value || null) as NonNullable<Storyboard["cues"]>[number]["holding"] })}>
+                            <option value="">no item</option>
+                            {HELD.map((x) => (
                               <option key={x} value={x}>{x}</option>
                             ))}
                           </select>
