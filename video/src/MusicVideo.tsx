@@ -4,6 +4,8 @@ import type { AnalysisData, Lyrics, Meta, Settings, Storyboard, StylePlan, Style
 import { Camera, cameraState, type CameraState } from "./Camera";
 import { background, foreground, mixPalettes, safePalette, shiftPalette } from "./color";
 import { easeInOutCubic } from "./easing";
+import { blendGrades, gradeFilter, gradeStrength } from "./grade";
+import { expressionStrength, moodAt } from "./scenes/mood";
 import { fallbackPlan } from "./fallbackPlan";
 import { seriesFrame, smoothed } from "./features";
 import { smooth } from "./motion";
@@ -158,7 +160,7 @@ export const MusicVideo = ({ analysis, lyrics, plan: planProp, storyboard, meta,
               <Preset uid={`p${i}`} frame={seriesFrame(analysis, t)} t={t} width={width} height={height} analysis={analysis} palette={pal} intensity={s.intensity} seed={seed} params={params} />
             </Camera>
           )}
-          {scene && <SceneLayer uid={`sc${i}`} scene={scene} cast={cast} objects={objects} t={t} width={width} height={height} analysis={analysis} palette={pal} seed={seed} showSky={mode === "scenes"} cam={cam} lyrics={lyrics} framing={framing} enterAt={timeline.boundaries[i].start} sectionProgress={bounds[i] ? clamp((t - bounds[i].start) / Math.max(bounds[i].end - bounds[i].start, 0.001)) : 0} />}
+          {scene && <SceneLayer uid={`sc${i}`} scene={scene} cast={cast} objects={objects} t={t} width={width} height={height} analysis={analysis} palette={pal} seed={seed} showSky={mode === "scenes"} cam={cam} lyrics={lyrics} framing={framing} enterAt={timeline.boundaries[i].start} sectionProgress={bounds[i] ? clamp((t - bounds[i].start) / Math.max(bounds[i].end - bounds[i].start, 0.001)) : 0} intensity={s.intensity} autoCrowd={settings.crowds ?? true} leadMood={moodAt(storyboard?.moods ?? [], t)} expressStrength={expressionStrength(energy)} />}
         </>
       );
     };
@@ -203,7 +205,9 @@ export const MusicVideo = ({ analysis, lyrics, plan: planProp, storyboard, meta,
         {layout && layout.flash > 0 && <AbsoluteFill style={{ backgroundColor: foreground(palette), opacity: layout.flash }} />}
       </>
     );
-    return { visuals, palette, idx };
+    // The section's colour treatment, eased from the last section's through the change and pushed a little harder by loud music.
+    const grade = blendGrades(inTransition ? (sections[idx - 1].style.grade ?? "none") : (sections[idx].style.grade ?? "none"), sections[idx].style.grade ?? "none", inTransition ? easeInOutCubic(p) : 1, gradeStrength(energy));
+    return { visuals, palette, idx, grade };
   };
 
   const main = pictureAt(t);
@@ -211,13 +215,21 @@ export const MusicVideo = ({ analysis, lyrics, plan: planProp, storyboard, meta,
   // Each moment is an opaque layer of its own; stacking them at 1/1, 1/2, 1/3... gives every one an equal share.
   const picture = offsets.map((dt, k) => {
     const shot = dt === 0 ? main : pictureAt(clamp(t + dt, 0, durationInFrames / fps));
-    const content = riso ? (
-      <RisoRegistration unit={Math.min(width, height)} seed={seed}>
+    const filter = gradeFilter(shot.grade);
+    const graded = (
+      <>
         {shot.visuals}
+        {shot.grade.tintAmount > 0.004 && <AbsoluteFill style={{ backgroundColor: shot.grade.tint, opacity: Math.min(1, shot.grade.tintAmount * 2), mixBlendMode: "overlay" }} />}
+      </>
+    );
+    const inner = riso ? (
+      <RisoRegistration unit={Math.min(width, height)} seed={seed}>
+        {graded}
       </RisoRegistration>
     ) : (
-      shot.visuals
+      graded
     );
+    const content = filter || shot.grade.tintAmount > 0.004 ? <AbsoluteFill style={{ filter, isolation: "isolate" }}>{inner}</AbsoluteFill> : inner;
     return offsets.length === 1 ? (
       content
     ) : (

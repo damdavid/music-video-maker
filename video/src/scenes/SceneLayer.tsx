@@ -8,6 +8,8 @@ import { mulberry32 } from "../rng";
 import { beatPeriod } from "../timeline";
 import { beatPhase, beatPulse } from "../timing";
 import { ENTER_STAGGER, groundSpeed, poseWithEntrance, poseFor, type ActionCtx } from "./actions";
+import { crowdAction, crowdSize } from "./crowd";
+import type { Mood } from "./face";
 import { holdPose } from "./held";
 import { Background, bleedOf } from "./backgrounds";
 import { MAX_ZOOM, type Framing } from "./direction";
@@ -46,6 +48,13 @@ type Props = {
   enterAt?: number;
   /** 0..1 through the section, for the light's drift. */
   sectionProgress?: number;
+  /** The section's intensity, 0..1: how lively the crowd is and whether one turns up on its own. */
+  intensity?: number;
+  /** Whether the renderer may add a crowd to a scene that doesn't set one. */
+  autoCrowd?: boolean;
+  /** What the lyrics call for the lead's face right now, and how strongly the music shows it. */
+  leadMood?: Mood | null;
+  expressStrength?: number;
 };
 
 const WIND: Record<Weather, number> = { clear: 0.15, fog: 0.05, rain: 0.6, snow: 0.4 };
@@ -58,7 +67,7 @@ const wrapX = (x: number, w: number, margin: number) => {
   return ((((x + margin) % span) + span) % span) - margin;
 };
 
-export const SceneLayer = ({ uid, scene, cast, objects, t, width: w, height: h, analysis, palette, seed, showSky, cam, lyrics, framing, enterAt, sectionProgress = 0 }: Props) => {
+export const SceneLayer = ({ uid, scene, cast, objects, t, width: w, height: h, analysis, palette, seed, showSky, cam, lyrics, framing, enterAt, sectionProgress = 0, intensity = 0.5, autoCrowd = true, leadMood = null, expressStrength = 1 }: Props) => {
   // The light slowly moves on toward the next time of day over the section.
   const c = driftColors(palette, scene.time_of_day, sectionProgress);
   const portrait = h > w;
@@ -95,17 +104,20 @@ export const SceneLayer = ({ uid, scene, cast, objects, t, width: w, height: h, 
   const layer = (depth: number) => depthTransform(camera, depth, w, h, focus);
   const ground = layer(1);
 
+  const crowdCount = crowdSize(scene.crowd, intensity, lead?.sc.action, autoCrowd);
   const crowd = useMemo(() => {
     const rand = mulberry32(seed ^ 0xc2b2ae35);
-    return Array.from({ length: scene.crowd }, (_, i) => ({
-      x0: ((i + 0.5) / Math.max(scene.crowd, 1) + (rand() - 0.5) * 0.08) * w,
+    return Array.from({ length: crowdCount }, (_, i) => ({
+      x0: ((i + 0.5) / Math.max(crowdCount, 1) + (rand() - 0.5) * 0.08) * w,
       depth: rand(),
       walks: rand() < 0.5,
       dir: rand() < 0.5 ? 1 : -1,
       offset: rand() * 5,
+      pick: rand(),
       hair: (["none", "short", "hat", "long", "hood"] as const)[Math.floor(rand() * 5)],
+      hat: ([null, null, "cowboy", "beanie", "cap", "top_hat", "beret", "sun_hat"] as const)[Math.floor(rand() * 8)],
     }));
-  }, [scene.crowd, seed, w]);
+  }, [crowdCount, seed, w]);
 
   return (
     <svg width={w} height={h} style={{ position: "absolute", inset: 0 }}>
@@ -135,19 +147,24 @@ export const SceneLayer = ({ uid, scene, cast, objects, t, width: w, height: h, 
         const depth = 0.35 + 0.5 * p.depth;
         const size = unit * (0.42 + 0.34 * p.depth);
         const y = hz + (gy - hz) * depth;
-        const own = p.walks ? p.dir * groundSpeed("walk") * size : 0;
+        // They follow the music: calm sections stroll and stand, lively ones sway, cheer and jump.
+        const action = crowdAction(intensity, p.pick, p.walks);
+        const own = action === "walk" ? p.dir * groundSpeed("walk") * size : 0;
         const x = wrapX(p.x0 + own * t - travel * depth, w, size * 0.4);
+        // Those who aren't walking turn toward the lead.
+        const toward = lead && PLACEMENT_X[lead.sc.placement] * w > x ? "right" : "left";
         return (
           <g key={i} transform={layer(depth)}>
             <Figure
-              pose={poseFor(p.walks ? "walk" : "idle", ctx(t + p.offset, 10 + i))}
+              pose={poseFor(action, ctx(t + p.offset, 10 + i))}
               colors={cast[0]?.colors ?? { body: c.ink, hair: c.ink, top: c.ink, bottom: c.ink, accent: c.ink }}
               hair={p.hair}
+              hat={p.hat ?? undefined}
               outfit="tee"
               x={x}
               y={y}
               size={size}
-              facing={p.walks ? (p.dir > 0 ? "right" : "left") : "right"}
+              facing={action === "walk" ? (p.dir > 0 ? "right" : "left") : toward}
               mono={c.ink}
               opacity={0.9}
               shadow={c.ink}
@@ -190,7 +207,7 @@ export const SceneLayer = ({ uid, scene, cast, objects, t, width: w, height: h, 
           return art ? (
             <FreeformFigure key={`${ch.id}-${i}`} art={art} uid={`${uid}-c${i}`} pose={pose} action={sc.action} t={ft} beat={beat} x={x} y={gy} size={unit * ch.build} facing={facing} mood={sc.expression} faceColor={featureColor(ch.colors.body)} shadow={c.ink} />
           ) : (
-            <Figure key={`${ch.id}-${i}`} pose={pose} colors={ch.colors} hair={ch.hair} outfit={ch.outfit} gender={ch.gender} rim={light.rim > 0.03 ? { color: mix(c.light, "#ffffff", 0.35), strength: light.rim, id: `${uid}-rim${i}` } : undefined} held={sc.holding ?? undefined} gaze={sc.lookAt === "camera" ? "camera" : undefined} t={ft} x={x} y={gy} size={unit * ch.build} facing={facing} face={{ mood: sc.expression, t: ft, open: i === 0 ? mouthOpen(lyrics, t) : 0 }} shadow={c.ink} />
+            <Figure key={`${ch.id}-${i}`} pose={pose} colors={ch.colors} hair={ch.hair} outfit={ch.outfit} hat={ch.hat ?? undefined} accessories={ch.accessories} gender={ch.gender} rim={light.rim > 0.03 ? { color: mix(c.light, "#ffffff", 0.35), strength: light.rim, id: `${uid}-rim${i}` } : undefined} held={sc.holding ?? undefined} gaze={sc.lookAt === "camera" ? "camera" : undefined} t={ft} x={x} y={gy} size={unit * ch.build} facing={facing} face={{ mood: i === 0 && leadMood ? leadMood : sc.expression, t: ft, open: i === 0 ? mouthOpen(lyrics, t) : 0, strength: expressStrength }} shadow={c.ink} />
           );
         })}
       </g>

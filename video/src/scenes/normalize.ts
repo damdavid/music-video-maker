@@ -5,6 +5,8 @@ import type { Action, Character, CharacterColors, CustomObject, Scene, SceneChar
 export type Hair = NonNullable<Character["hair"]>;
 export type Outfit = NonNullable<Character["outfit"]>;
 export type Gender = NonNullable<Character["gender"]>;
+export type Hat = NonNullable<Character["hat"]>;
+export type Accessory = NonNullable<Character["accessories"]>[number];
 export type HeldKind = NonNullable<SceneCharacter["holding"]>;
 export type PropKind = NonNullable<Scene["props"]>[number];
 export type Placement = "left" | "center" | "right";
@@ -14,14 +16,15 @@ export type ObjectSize = NonNullable<CustomObject["size"]>;
 export type Illustration = "library" | "freeform";
 export type ResolvedObject = { id: string; size: ObjectSize; svg: string | null };
 export type ResolvedSceneObject = { object_id: string; placement: Placement };
-export type ResolvedCharacter = { id: string; gender: Gender; hair: Hair; outfit: Outfit; build: number; colors: CharacterColors; svg: string | null };
+export type ResolvedCharacter = { id: string; gender: Gender; hair: Hair; outfit: Outfit; hat: Hat | null; accessories: Accessory[]; build: number; colors: CharacterColors; svg: string | null };
 export type ResolvedSceneCharacter = { character_id: string; action: Action; expression: Mood; placement: Placement; facing: "left" | "right"; holding: HeldKind | null; lookAt: string | null };
 export type ResolvedScene = {
   setting: Setting;
   time_of_day: TimeOfDay;
   weather: Weather;
   characters: ResolvedSceneCharacter[];
-  crowd: number;
+  /** Background figures; null leaves it to the renderer (see crowd.ts). */
+  crowd: number | null;
   props: PropKind[];
   objects: ResolvedSceneObject[];
   /** The mode this scene is drawn in (its own override, else the storyboard's default). */
@@ -37,6 +40,8 @@ export const resolveCharacter = (c: Character): ResolvedCharacter => ({
   gender: c.gender ?? legacyGender(c.hair ?? "short", c.outfit ?? "tee"),
   hair: c.hair ?? "short",
   outfit: c.outfit ?? "tee",
+  hat: c.hat ?? null,
+  accessories: c.accessories ?? [],
   build: c.build ?? 1,
   colors: c.colors,
   svg: c.svg ?? null,
@@ -52,7 +57,7 @@ export const resolveScene = (s: Scene, boardDefault: Illustration = "library"): 
     const action = c.action ?? "idle";
     return { character_id: c.character_id, action, expression: c.expression ?? defaultExpression(action), placement: c.placement ?? "center", facing: c.facing ?? "right", holding: c.holding ?? null, lookAt: c.looks_at ?? null };
   }),
-  crowd: s.crowd ?? 0,
+  crowd: s.crowd ?? null,
   props: s.props ?? [],
   objects: (s.objects ?? []).map((o) => ({ object_id: o.object_id, placement: o.placement ?? "right" })),
   illustration: s.illustration ?? boardDefault,

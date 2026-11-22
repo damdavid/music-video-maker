@@ -36,6 +36,10 @@ def _keep_sane(refined, before) -> None:
     for was, now in zip(old, new):
         if now.start < 0 or now.end < now.start or now.end > limit or now.end - now.start > MAX_REFINED_WORD_S or abs(now.start - was.start) > MAX_REFINED_SHIFT_S:
             now.start, now.end = was.start, was.end
+    # Refining clips held notes, so only starts are taken; a word keeps the end it was aligned with unless the next word now starts sooner.
+    for i, (was, now) in enumerate(zip(old, new)):
+        following = new[i + 1].start if i + 1 < len(new) else was.end
+        now.end = max(now.start, min(was.end, following))
 
 
 def align(audio: Path, lyrics_text: str, language: str = "en", on_stage: Callable[[str], None] | None = None) -> Lyrics:

@@ -363,7 +363,7 @@ export function App() {
           </div>
           {planError && <p className="error">Style plan failed: {planError}</p>}
           {plan && <StylePlanEditor projectId={projectId} plan={plan} sections={sections} lyricVideo={settings.lyric_video ?? true} onChange={updatePlan} />}
-          <StoryboardEditor projectId={projectId} board={storyboard} sections={sections} sectionDescriptions={sectionDescriptions} onChange={setStoryboard} />
+          <StoryboardEditor projectId={projectId} board={storyboard} sections={sections} sectionDescriptions={sectionDescriptions} lyrics={lyricsData} onChange={setStoryboard} />
           {inputProps && (
             <Player
               ref={playerRef}

@@ -11,6 +11,7 @@ from app.models import (
     VISUAL_PRESETS,
     AnalysisData,
     CameraMotion,
+    Grade,
     Look,
     LyricAnimation,
     Lyrics,
@@ -40,6 +41,7 @@ but you may deliberately hold back or contrast when the meaning calls for it.
 - Transitions: iris and dive open the new section from the centre of the frame, so use them for a section that begins on a focal moment (a chorus landing, a drop); keep crossfade for gentle changes.
 - Transitions land on the nearest downbeat and last about two beats. push shoves the old section off sideways and keeps momentum (verse into pre-chorus); whip is a fast blurred pan for energetic changes; wipe sweeps an angled edge across for clean, graphic changes; punch punches both shots in and cuts hard on the downbeat with a flash, for a chorus or drop landing.
 - Camera: pulse punches the frame in on each beat; use it on high-energy sections. handheld is a gentle organic wander that grows livelier with loudness; use it for intimate, raw or live-feeling sections. Lyric animations: inkStamp prints words with a slightly misregistered second ink; dotDissolve ends each line by breaking the words into shrinking dots. Both suit stylized, graphic songs; prefer simpler ones otherwise.
+- Grade: a colour treatment for each section's whole picture (none, warm, cool, faded, noir, vivid, dream). Use it to carry the feeling: warm for tenderness or nostalgia, cool for loneliness or distance, faded for memory, noir for tension or grief, vivid for joy or release, dream for wonder. Keep most sections at none or subtle, and let a change of grade mark a change of mood.
 - Look: riso gives the whole video a printed-poster finish (paper grain, slightly misregistered inks, a dot screen); choose it for graphic, retro, indie or analog-feeling songs and keep clean for everything else. With riso, the palette should be a few flat, saturated inks on a dark or paper-toned background.
 - New presets: ripples (a centre dot sending out a ring on each beat, with a lens ring), halftoneBloom (a spinning flower of dot-screen petals), orbits (counter-rotating rings of medallions). They suit riso; use them sparingly in clean videos.
 - handwrite is a lyric animation that writes each word with a pen as it is sung; it suits sparse, intimate sections and works only for plain Latin text.
@@ -62,6 +64,7 @@ class SectionDraft(BaseModel):
     camera_motion: CameraMotion
     lyric_animation: LyricAnimation
     transition_in: Transition
+    grade: Grade = Field(default="none", description="Colour treatment for the section")
 
 
 class PlanDraft(BaseModel):
@@ -183,6 +186,7 @@ def _section(d: SectionDraft) -> StyleSection:
         camera_motion=d.camera_motion,
         lyric_animation=d.lyric_animation,
         transition_in=d.transition_in,
+        grade=d.grade,
     )
 
 

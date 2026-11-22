@@ -7,10 +7,13 @@ import anthropic
 from pydantic import BaseModel, Field
 
 from app.models import (
+    Accessory,
     AnalysisData,
     CustomObject,
+    Expression,
     Gender,
     Hair,
+    Hat,
     Illustration,
     Lyrics,
     Outfit,
@@ -33,14 +36,15 @@ Given a song's meaning, mood, structure and lyrics, you design a cast and one sc
 
 Rules:
 - Choose only from the allowed values; the renderer supports nothing else.
-- Cast: usually ONE protagonist (id like "hero", lowercase letters/digits/underscores). Add a second character only if the song is clearly about two people. Give them a short description, a gender (male or female, to match who they are), a hair style, an outfit, and five hex colors (body, hair, top, bottom, accent). Pick clothing colors that stand out against the scene palette you are given, and keep the same cast across every scene.
+- Cast: usually ONE protagonist (id like "hero", lowercase letters/digits/underscores). Add a second character only if the song is clearly about two people. Give them a short description, a gender (male or female, to match who they are), a hair style, an outfit, optionally a hat (cowboy, beanie, cap, top_hat, beret, sun_hat) and up to two accessories (glasses, sunglasses, scarf, headphones, backpack) when they say something about who the character is, and five hex colors (body, hair, top, bottom, accent). Pick clothing colors that stand out against the scene palette you are given, and keep the same cast across every scene.
 - One scene per section, in order. Follow the song's arc: settings, time of day and weather should change with the story and the energy, not repeat for every section.
 - Actions: walk/run for journeys and urgency, sit for reflection, slump for sadness or defeat, look_up for hope or wonder, reach for longing, wave for greeting or farewell, dance and jump for joy or release, idle for stillness.
 - Expressions (neutral, happy, sad, surprised, calm, determined) are simple dot-eye faces. Set one when the moment's feeling differs from what the action suggests (a sad walk, a calm sit after a storm); leave it out to let the action pick.
-- Use "crowd" (0-8 faceless background silhouettes) for loneliness-in-a-crowd, parties, streets; use 0 for solitude.
-- Props are set dressing (lamp, bench, tree, house, suitcase). Use few, and only when they add to the story.
-- A character can hold something ("holding": umbrella, suitcase, microphone, flowers, lantern, book, or guitar, which is played with both hands). Give an item only when the moment calls for it: a microphone or guitar for a singer, an umbrella in rain, a suitcase for leaving, flowers or a lantern for tenderness or hope, a book for reflection. Most scenes need none.
+- "crowd" is the number (0-8) of background figures, who react to the beat. Set it for loneliness-in-a-crowd, parties, concerts, streets; set 0 for deliberate solitude; leave it out to let the renderer add a few in energetic sections.
+- Props are set dressing (lamp, bench, tree, house, suitcase, campfire, fence, signpost). Use few, and only when they add to the story.
+- A character can hold something ("holding": umbrella, suitcase, microphone, flowers, lantern, book, phone, flag, balloon, cup, or guitar, which is played with both hands). Give an item only when the moment calls for it: a microphone or guitar for a singer, an umbrella in rain, a suitcase for leaving, flowers or a lantern for tenderness or hope, a book for reflection. Most scenes need none.
 - With more than one character, "looks_at" says who a character looks at: another character's id (they turn to face each other) or "camera" for an address to the viewer. Use it where the two are connected in that moment; leave it out otherwise.
+- "moods" follow the lyrics: the lyric lines are numbered under "lyric_lines". Add an entry (the line number and an expression) at a line where the feeling turns or lands: a sad line, a surprise, a moment of determination or calm. A mood lasts until the next one, so a few well-placed entries beat one per line; the scene's own expression is used wherever there is none.
 - A section's "user_description" is the creator's direction for that scene; follow it.
 - Custom objects (listed under "Custom objects", if any) are the creator's own props. Place them in scenes where they fit, by object_id, using only the given ids; never invent ids.
 - Each scene's description is one short line a non-technical reader can follow.
@@ -64,6 +68,8 @@ class LooseCharacter(BaseModel):
     gender: Gender = Field(default="male", description="male or female, to match who they are")
     hair: Hair = "short"
     outfit: Outfit = "tee"
+    hat: Hat | None = None
+    accessories: list[Accessory] = Field(default_factory=list, description="At most 2")
     build: float = Field(default=1.0, description="Height scale, 0.85 to 1.15")
     colors: LooseColors
 
@@ -75,14 +81,20 @@ class LooseScene(BaseModel):
     time_of_day: TimeOfDay = "night"
     weather: Weather = "clear"
     characters: list[SceneCharacter] = Field(default_factory=list, description="At most 3")
-    crowd: int = Field(default=0, description="Faceless background silhouettes, 0 to 8")
+    crowd: int | None = Field(default=None, description="Background figures, 0 to 8; leave out to let the renderer decide")
     props: list[Prop] = Field(default_factory=list, description="At most 4")
     objects: list[SceneObject] = Field(default_factory=list, description="At most 3")
+
+
+class LooseMood(BaseModel):
+    line: int = Field(description="Number of the lyric line, as given under lyric_lines")
+    expression: Expression
 
 
 class LooseStoryboard(BaseModel):
     cast: list[LooseCharacter] = Field(default_factory=list, description="Usually one character, at most 6")
     scenes: list[LooseScene] = Field(default_factory=list)
+    moods: list[LooseMood] = Field(default_factory=list, description="The lead's expression at chosen lyric lines")
 
 
 MAX_CAST = 6
@@ -100,7 +112,7 @@ def _cast(cast: list[LooseCharacter]) -> list[dict]:
         if cid in out:
             continue
         colors = {k: _hex(v) or DEFAULT_COLORS[k] for k, v in c.colors.model_dump().items()}
-        out[cid] = {**c.model_dump(include={"name", "description", "gender", "hair", "outfit"}), "id": cid, "build": _clamp(c.build, 0.85, 1.15), "colors": colors}
+        out[cid] = {**c.model_dump(include={"name", "description", "gender", "hair", "outfit", "hat"}), "id": cid, "accessories": list(dict.fromkeys(c.accessories))[:2], "build": _clamp(c.build, 0.85, 1.15), "colors": colors}
     return list(out.values())[:MAX_CAST]
 
 
@@ -118,7 +130,7 @@ def _scene(s: LooseScene, cast_ids: set[str], object_ids: set[str]) -> dict:
         "characters": [c for c in characters if c["character_id"] in cast_ids][:3],
         "objects": [o for o in objects if o["object_id"] in object_ids][:3],
         "props": list(dict.fromkeys(s.props))[:4],
-        "crowd": int(_clamp(s.crowd, 0, 8)),
+        "crowd": None if s.crowd is None else int(_clamp(s.crowd, 0, 8)),
     }
 
 
@@ -159,7 +171,25 @@ def _context(
     if objects:
         listing = [o.model_dump(include={"id", "name", "description", "size"}) for o in objects]
         note += f"\n\nCustom objects: {json.dumps(listing)}"
-    return _brief(project, analysis, lyrics) + note
+    return _brief(project, analysis, lyrics) + note + _numbered(lyrics)
+
+
+def _numbered(lyrics: Lyrics | None) -> str:
+    """The lines with their numbers, so Claude can say which line a mood belongs to."""
+    if not lyrics or not lyrics.lines:
+        return ""
+    return f"\n\nlyric_lines: {json.dumps([{'line': i, 'text': line.text} for i, line in enumerate(lyrics.lines)])}"
+
+
+def _moods(draft: list[LooseMood], lyrics: Lyrics | None) -> list[dict]:
+    """Line numbers become times, so a mood stays with its moment when lines are edited later."""
+    if not lyrics:
+        return []
+    at = {}
+    for m in draft:
+        if 0 <= m.line < len(lyrics.lines):
+            at[round(lyrics.lines[m.line].start, 2)] = m.expression
+    return [{"at": t, "expression": e} for t, e in sorted(at.items())]
 
 
 def generate_storyboard(
@@ -182,6 +212,7 @@ def generate_storyboard(
             "cast": cast,
             "objects": [o.model_dump() for o in objects],
             "scenes": [_scene(s, cast_ids, object_ids) for s in draft.scenes],
+            "moods": _moods(draft.moods, lyrics),
         }
     )
     return _normalize(board, len(analysis.sections))

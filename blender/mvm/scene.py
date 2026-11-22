@@ -7,10 +7,29 @@ import zlib
 import bpy
 from mathutils import Vector
 
-from . import body, camera, figure, lyrics as lyric_text, motion, world
+from . import body, camera, figure, grade as grading, lyrics as lyric_text, motion, rules, world
 from .timing import beat_period, beat_phase, bars_per_shot, eye_open, mouth_open, plan_shots, section_spans, title_window, video_size, Shot
 
 PLACE_X = {"left": -2.4, "center": 0.0, "right": 2.4}
+# Expression a character takes from what they are doing when the storyboard doesn't set one.
+BY_ACTION = {"idle": "neutral", "walk": "neutral", "run": "determined", "sit": "calm", "wave": "happy", "look_up": "surprised", "reach": "sad", "dance": "happy", "jump": "happy", "slump": "sad"}
+CROWD_INK = "#15151c"
+MAX_CROWD = 6  # every figure is keyed on every frame, so the crowd is kept lighter than the other renderer's
+CROWD_HATS = (None, None, "cowboy", "beanie", "cap", "top_hat", "beret", "sun_hat")
+RIM_WATTS = 900.0
+
+
+def facing_signs(chars: list[dict]) -> list[float]:
+    """Which way each character faces: toward whoever they look at (another character), else the way the storyboard gave."""
+    xs = {c["character_id"]: PLACE_X[c.get("placement") or "center"] for c in chars}
+    out = []
+    for c in chars:
+        own = 1.0 if (c.get("facing") or "right") == "right" else -1.0
+        target = c.get("looks_at")
+        if target and target != "camera" and target != c["character_id"] and target in xs and xs[target] != xs[c["character_id"]]:
+            own = 1.0 if xs[target] > xs[c["character_id"]] else -1.0
+        out.append(own)
+    return out
 DEFAULT_COLORS = dict(body="#d9a37e", hair="#2b1d14", top="#3b6fb0", bottom="#23262e", accent="#e8e2d4")
 EVENT_EVERY = 10  # frames between progress events while building
 
@@ -65,6 +84,9 @@ def build(props: dict, seconds: float | None, emit):
     styles = {s["section_ref"]: s for s in plan.get("sections") or []}
     lines = (props.get("lyrics") or {}).get("lines") or []
     auto_cuts = settings.get("auto_cuts", True)
+    moods = board.get("moods") or []
+    crowds_on = settings.get("crowds", True)
+    palette_grade = grading.Grade(scene)
 
     spans = section_spans(analysis)
     beats, bpm, downbeats = analysis.get("beats") or [], analysis.get("bpm") or 120, analysis.get("downbeats") or []
@@ -86,6 +108,9 @@ def build(props: dict, seconds: float | None, emit):
         tod, weather = sc.get("time_of_day") or "night", sc.get("weather") or "clear"
         origin = (0.0, i * world.STAGE_SPACING, 0.0)
         sceneinfo = {}
+        chars_here = [c for c in (sc.get("characters") or []) if c["character_id"] in cast]
+        intensity = (styles.get(i) or {}).get("intensity", 0.5)
+        crowd_n = min(MAX_CROWD, rules.crowd_size(sc.get("crowd"), intensity, chars_here[0].get("action", "idle") if chars_here else None, crowds_on))
 
         def make():
             world.build_earth(origin, setting, weather)
@@ -101,9 +126,24 @@ def build(props: dict, seconds: float | None, emit):
                     continue
                 hair, outfit = ch.get("hair") or "short", ch.get("outfit") or "tee"
                 gender = ch.get("gender") or body.infer_gender(hair, outfit)
-                fig = figure.Figure(f"s{i}c{j}", ch.get("colors") or DEFAULT_COLORS, hair, outfit, gender, body.HEIGHT[gender] * (ch.get("build") or 1.0))
+                fig = figure.Figure(f"s{i}c{j}", ch.get("colors") or DEFAULT_COLORS, hair, outfit, gender, body.HEIGHT[gender] * (ch.get("build") or 1.0),
+                                    hat=ch.get("hat"), accessories=ch.get("accessories") or [], holding=c.get("holding"))
                 members.append((fig, c, j))
             sceneinfo["members"] = members
+            # Background figures in flat dark silhouettes, facing the lead and moving with the music.
+            ink = dict(body=CROWD_INK, hair=CROWD_INK, top=CROWD_INK, bottom=CROWD_INK, accent=CROWD_INK)
+            crowd = []
+            for n in range(crowd_n):
+                gender = "female" if rng.random() < 0.5 else "male"
+                fig = figure.Figure(f"s{i}x{n}", ink, rng.choice(("none", "short", "long", "bun")), "tee", gender, body.HEIGHT[gender] * rng.uniform(0.92, 1.06), hat=rng.choice(CROWD_HATS))
+                x0 = -8.0 + 16.0 * (n + 0.5) / max(crowd_n, 1) + rng.uniform(-0.4, 0.4)
+                crowd.append(dict(fig=fig, x=x0, y=rng.uniform(2.5, 7.0), pick=rng.random(), phase=rng.uniform(0.0, 5.0)))
+            sceneinfo["crowd"] = crowd
+            rim = bpy.data.lights.new(f"rim{i}", "SPOT")
+            rim.spot_size, rim.spot_blend, rim.use_shadow, rim.energy = math.radians(70), 0.8, False, 0.0
+            rim_obj = bpy.data.objects.new(f"rim{i}", rim)
+            scene.collection.objects.link(rim_obj)
+            sceneinfo["rim"] = rim_obj
 
         coll = _stage(f"stage{i}", scene, make)
         f0, f1 = int(a * fps), min(int(b * fps), n_frames)
@@ -115,14 +155,17 @@ def build(props: dict, seconds: float | None, emit):
         if prev_tod is not None:
             sky.key(f0 - 1, *prev_tod)
         sky.key(f0, tod, weather)
-        prev_tod = (tod, weather)
+        # Over the scene the light moves part of the way on toward the next time of day.
+        prev_tod = (tod, weather, (rules.next_time_of_day(tod), rules.drift_amount(1.0)))
         members = sceneinfo["members"]
         lead_action = members[0][1].get("action", "idle") if members else "idle"
-        intensity = (styles.get(i) or {}).get("intensity", 0.5)
         shots = plan_shots(a, b, downbeats, bar_len, bars_per_shot(intensity), lead_action, seed + i)
         if not auto_cuts:
             shots = [Shot(a, b, shots[0].kind)]
-        runs.append(dict(i=i, a=a, b=b, f0=f0, f1=f1, origin=origin, setting=setting, members=members, shots=shots, fill=world.FILL[tod] * (0.3 if setting == "room" else 1.0)))
+        runs.append(dict(i=i, a=a, b=b, f0=f0, f1=f1, origin=origin, setting=setting, members=members, crowd=sceneinfo["crowd"], rim=sceneinfo["rim"], tod=tod, grade=(styles.get(i) or {}).get("grade") or "none", intensity=intensity, shots=shots, fill=world.FILL[tod] * (0.3 if setting == "room" else 1.0)))
+
+    if prev_tod is not None and runs:
+        sky.key(min(runs[-1]["f1"], n_frames) - 1, *prev_tod)
 
     # The lyric text hangs off the camera, sized and placed at its focus distance each frame.
     anchor = None
@@ -144,13 +187,14 @@ def build(props: dict, seconds: float | None, emit):
     for r in runs:
         members = r["members"]
         lead = members[0] if members else None
-        facing_sign = 1.0 if (lead and (lead[1].get("facing") or "right") == "right") else -1.0
+        signs = facing_signs([c for _, c, _ in members])
+        facing_sign = signs[0] if signs else 1.0
         azimuths = cam.shot_azimuths(r["shots"], facing_sign, seed + r["i"])
         open_world = r["setting"] in world.OPEN
         paths = []
         for fig, c, j in members:
             action = c.get("action", "idle")
-            sign = 1.0 if (c.get("facing") or "right") == "right" else -1.0
+            sign = signs[len(paths)]
             speed = motion.ground_speed(action) * fig.h if open_world else 0.0
             span = r["b"] - r["a"]
             travel = min(speed * span / 2, 180.0)
@@ -167,16 +211,45 @@ def build(props: dict, seconds: float | None, emit):
                 x0, sign, speed = paths[k]
                 ctx = motion.Ctx(t=t, beat=beat, beat_len=beat_len, energy=energy, seed=seed, variant=j)
                 pose = motion.pose_with_entrance(action, ctx, t - r["a"] - j * motion.ENTER_STAGGER)
-                fig.apply(pose, mouth_open(lines, t) if k == 0 and lines else 0.0, eye_open(t, j))
+                if c.get("holding"):
+                    pose = motion.hold_pose(pose, c["holding"], t, beat, energy)
+                # What the lyrics call for, else the scene's own expression, else what the action suggests; the music turns it up or down.
+                mood = (rules.mood_at(moods, t) if k == 0 else None) or c.get("expression") or BY_ACTION.get(action, "neutral")
+                fig.apply(pose, mouth_open(lines, t) if k == 0 and lines else 0.0, eye_open(t, j), mood, rules.expression_strength(energy))
                 x = x0 + sign * speed * (t - r["a"])
                 fig.root.location = (x, r["origin"][1] + (j - (len(members) - 1) / 2) * 0.9, 0.0)
-                fig.root.rotation_euler = (0.0, 0.0, math.radians(90 * sign))
+                # Looking at the camera turns the figure most of the way round to face it.
+                yaw = 36.0 * sign if c.get("looks_at") == "camera" else 90.0 * sign
+                fig.root.rotation_euler = (0.0, 0.0, math.radians(yaw))
                 fig.key(f)
                 if k == 0:
                     lead_pos = Vector(fig.root.location)
+            lead_x = lead_pos.x
+            for n, member in enumerate(r["crowd"]):
+                cfig = member["fig"]
+                caction = rules.crowd_action(r["intensity"], member["pick"], False)
+                cctx = motion.Ctx(t=t + member["phase"], beat=beat + member["phase"], beat_len=beat_len, energy=energy, seed=seed, variant=10 + n)
+                cfig.apply(motion.pose_with_entrance(caction, cctx, t - r["a"] - 0.3 - 0.1 * n), 0.0, eye_open(t, 10 + n))
+                cfig.root.location = (member["x"], r["origin"][1] + member["y"], 0.0)
+                cfig.root.rotation_euler = (0.0, 0.0, math.radians(90 * (1.0 if lead_x > member["x"] else -1.0)))
+                cfig.key(f)
             height = members[0][0].h if members else 1.75
             action = members[0][1].get("action", "idle") if members else "idle"
             cam.key(f, t, r["shots"], azimuths, lead_pos, height, action, energy, seed, fill=r["fill"], new_scene=(f == r["f0"]))
+            # Light that follows the song: an edge of light behind the lead, a lift on each beat, and the section's colour grade.
+            light = rules.lighting_at(r["tod"], rules.beat_envelope(beats, t), rules.beat_envelope(downbeats, t), energy)
+            tint = world.TIME_OF_DAY[r["tod"]]["color"]
+            rim = r["rim"]
+            back = Vector((lead_pos.x - cam.obj.location.x, lead_pos.y - cam.obj.location.y, 0.0))
+            back = back.normalized() if back.length > 1e-6 else Vector((0.0, 1.0, 0.0))
+            focus = Vector((lead_pos.x, lead_pos.y, height * 0.62))
+            rim.location = focus + back * 2.6 + Vector((0.0, 0.0, 0.9))
+            rim.rotation_euler = (focus - rim.location).to_track_quat("-Z", "Y").to_euler()
+            rim.data.energy = RIM_WATTS * light["rim"]
+            rim.data.color = tuple(0.5 + 0.5 * c for c in tint)
+            for prop, obj in (("location", rim), ("rotation_euler", rim), ("energy", rim.data), ("color", rim.data)):
+                obj.keyframe_insert(prop, frame=f)
+            palette_grade.key(f, rules.blend_grades(r["grade"], r["grade"], 1.0, rules.grade_strength(energy)), light["flash"])
             # Text hangs in front of the subject (so a head never covers a word), scaled to keep its size on screen for any lens.
             d = cam.data.dof.focus_distance
             # Never further than TEXT_MAX_M: in a wide shot the lower third of the frame at the subject's distance is underground.

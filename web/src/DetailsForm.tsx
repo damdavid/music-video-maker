@@ -88,6 +88,9 @@ export function DetailsForm({ meta, settings, onMeta, onSettings }: Props) {
             <option value="strong">Strong (5 samples)</option>
           </select>
         </label>
+        <label title="Adds background figures that react to the beat in energetic sections. A scene's own crowd number always wins.">
+          <input type="checkbox" checked={settings.crowds ?? true} onChange={(e) => onSettings({ ...settings, crowds: e.target.checked })} /> Background crowds in intense scenes
+        </label>
         <label title="The song title and artist at the start: held through the intro until the first lyric appears (up to 8 seconds).">
           <input type="checkbox" checked={settings.title_card ?? true} onChange={(e) => onSettings({ ...settings, title_card: e.target.checked })} /> Show title and artist at the start
         </label>

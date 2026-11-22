@@ -212,7 +212,7 @@ def dance(c: Ctx) -> Pose:
     now = _move_for(seed, bar)(c.beat, amp)
     if into >= 1:
         return now
-    return lerp_pose(_move_for(seed, bar - 1)(c.beat, amp), now, smooth(into))
+    return lerp_pose(_move_for(seed, bar - 1)(c.beat, amp), now, ease_anticipate(into, 0.08, 1.2))
 
 
 def jump(c: Ctx) -> Pose:
@@ -278,21 +278,29 @@ def pose_for(action: str, c: Ctx) -> Pose:
 ENTER_S, ENTER_STAGGER = 0.7, 0.12
 
 
-def ease_out_back(x: float) -> float:
+def ease_out_back(x: float, c1: float = 1.70158) -> float:
     p = min(1.0, max(0.0, x))
     if p in (0.0, 1.0):
         return p
-    c1 = 1.70158
     c3 = c1 + 1
     return 1 + c3 * (p - 1) ** 3 + c1 * (p - 1) ** 2
 
 
+def ease_anticipate(x: float, dip: float = 0.12, c1: float = 1.70158) -> float:
+    """A move that first backs away from its target by `dip` (anticipation), then snaps past it and settles (overshoot)."""
+    p = min(1.0, max(0.0, x))
+    wind = 0.22
+    if p < wind:
+        return -dip * (-(math.cos(math.pi * p / wind) - 1) / 2)
+    return -dip + (1 + dip) * ease_out_back((p - wind) / (1 - wind), c1)
+
+
 def pose_with_entrance(action: str, c: Ctx, since: float) -> Pose:
-    """The pose `since` seconds after the figure appears: easing from standing into its action, with a little overshoot."""
+    """The pose `since` seconds after the figure appears: it winds up, eases from standing into its action and overshoots."""
     target = pose_for(action, c)
     if since >= ENTER_S or action == "idle":
         return target
-    return lerp_pose(pose_for("idle", c), target, ease_out_back(since / ENTER_S))
+    return lerp_pose(pose_for("idle", c), target, ease_anticipate(since / ENTER_S))
 
 
 def stance_height(p: Pose) -> float:
@@ -301,3 +309,39 @@ def stance_height(p: Pose) -> float:
         a1, a2 = math.radians(leg[0]), math.radians(leg[0] + leg[1])
         return THIGH * math.cos(a1) + SHIN * math.cos(a2)
     return max(reach(p.leg_l), reach(p.leg_r)) + p.y
+
+
+# ------------------------------------------------------------------ held items
+
+TWO_HANDED = ("guitar",)
+HELD = ("umbrella", "suitcase", "microphone", "flowers", "lantern", "book", "guitar", "phone", "flag", "balloon", "cup")
+
+
+def hold_pose(p: Pose, kind: str, t: float, beat: float, energy: float) -> Pose:
+    """The arms that hold an item, in the item's grip (the same angles as the Remotion renderer). The other arm keeps doing what the action does."""
+    sway = math.sin(t / 2.6 * TAU)
+    if kind == "umbrella":
+        return replace(p, arm_r=(14 + 1.5 * sway, 82.0))
+    if kind == "suitcase":
+        return replace(p, arm_r=(6 + 4 * energy * sway, 4.0))
+    if kind == "microphone":
+        return replace(p, arm_r=(30 + 2 * sway, 132.0))
+    if kind == "flowers":
+        return replace(p, arm_r=(30.0, 52 + 2 * sway))
+    if kind == "lantern":
+        return replace(p, arm_r=(24.0, 22 + 3 * sway))
+    if kind == "book":
+        return replace(p, arm_r=(12.0, 98.0))
+    if kind == "phone":
+        return replace(p, arm_r=(26 + 2 * sway, 116.0))
+    if kind == "flag":
+        return replace(p, arm_r=(30.0, 58 + 2 * sway))
+    if kind == "balloon":
+        return replace(p, arm_r=(42.0, 20 + 3 * sway))
+    if kind == "cup":
+        return replace(p, arm_r=(22.0, 106.0))
+    if kind == "guitar":
+        strum = math.sin(beat * TAU)
+        # In 3D the far hand reaches out to the figure's left along the neck (see Figure.abduct), not straight ahead.
+        return replace(p, arm_r=(24 + 5 * strum, 58 + 14 * strum * (0.4 + energy)), arm_l=(40.0, 30.0))
+    return p

@@ -1,17 +1,21 @@
-import type { ReactNode } from "react";
+import { useId, type ReactNode } from "react";
 import type { CharacterColors } from "../../../shared/types";
 import { Face, featureColor, type Mood } from "./face";
-import type { Gender, Hair, HeldKind, Outfit } from "./normalize";
+import type { Accessory, Gender, Hair, Hat, HeldKind, Outfit } from "./normalize";
 import { GuitarOnBody, HeldInHand } from "./HeldItem";
 import { RimLightFilter } from "./LightFx";
 import { layout, SEG, type Pose, type Pt } from "./rig";
 import { shade } from "./shade";
+import { BackpackBack, BackpackStrap, HatShape, HeadGear, LONG_SLEEVED, OutfitDetail, Scarf } from "./Wearables";
 
 type Props = {
   pose: Pose;
   colors: CharacterColors;
   hair: Hair;
   outfit: Outfit;
+  /** Worn over the hair. */
+  hat?: Hat;
+  accessories?: Accessory[];
   /** Shapes the torso: broader shoulders and narrower hips for male, the reverse for female. Omitted for silhouettes. */
   gender?: Gender;
   /** Something carried; the arms are already posed to hold it (see held.ts). */
@@ -31,7 +35,7 @@ type Props = {
   mono?: string;
   opacity?: number;
   /** Omitted for faceless figures (background silhouettes). `open` is the mouth opening 0..1 while singing. */
-  face?: { mood: Mood; t: number; open?: number };
+  face?: { mood: Mood; t: number; open?: number; strength?: number };
   /** Contact shadow colour; omitted for none. */
   shadow?: string;
 };
@@ -140,14 +144,15 @@ const Shoe = ({ knee, ankle, lift, color, ink, flat }: { knee: Pt; ankle: Pt; li
 };
 
 /** A flat figure, drawn with outlines and a band of shade on each form; emotion comes from pose and a simple face. */
-export const Figure = ({ pose, colors, hair, outfit, gender, held, gaze, t = 0, rim, x, y, size, facing, mono, opacity = 1, face, shadow }: Props) => {
+export const Figure = ({ pose, colors, hair, outfit, hat, accessories = [], gender, held, gaze, t = 0, rim, x, y, size, facing, mono, opacity = 1, face, shadow }: Props) => {
   const j = layout(pose);
+  const uid = useId().replace(/:/g, "_");
   const c = mono ? { body: mono, hair: mono, top: mono, bottom: mono, accent: mono } : colors;
   const flat = !!mono;
   const ink = mono ?? featureColor(colors.body);
   const r = SEG.headR;
   const dress = outfit === "dress";
-  const longSleeves = outfit === "coat" || outfit === "hoodie";
+  const longSleeves = LONG_SLEEVED.includes(outfit);
   const legColor = dress && !mono ? c.body : c.bottom;
   const flip = facing === "left" ? -1 : 1;
   const edge = { stroke: flat ? "none" : ink, strokeWidth: 2 * OW, paintOrder: "stroke", strokeLinejoin: "round" } as const;
@@ -232,6 +237,8 @@ export const Figure = ({ pose, colors, hair, outfit, gender, held, gaze, t = 0, 
         {leg(j.kneeL, j.ankleL)}
         {leg(j.kneeR, j.ankleR)}
 
+        {accessories.includes("backpack") && <BackpackBack j={j} colors={c} ink={ink} flat={flat} />}
+
         {/* neck, torso and outfit */}
         <Limb parts={[{ a: j.shoulder, ra: R.neck, b: { x: j.head.x - Math.sin((j.headAngle * Math.PI) / 180) * r * 0.55, y: j.head.y + Math.cos((j.headAngle * Math.PI) / 180) * r * 0.55 }, rb: R.neck * 0.95, fill: c.body }]} ink={ink} flat={flat} />
         {dress && <path d={hem(0.165, 0.19)} fill={c.top} {...edge} />}
@@ -246,6 +253,10 @@ export const Figure = ({ pose, colors, hair, outfit, gender, held, gaze, t = 0, 
         )}
         {!flat && outfit === "coat" && <path d={`M ${f(j.shoulder.x + 0.012)} ${f(j.shoulder.y + 0.012)} L ${f(j.hip.x + 0.012)} ${f(j.hip.y + 0.2)}`} fill="none" stroke={shade(c.top, -18)} strokeWidth={0.006} strokeLinecap="round" />}
         {!flat && (outfit === "tee" || dress) && <path d={`M ${f(j.shoulder.x - 0.018)} ${f(j.shoulder.y + 0.004)} Q ${f(j.shoulder.x + 0.02)} ${f(j.shoulder.y + 0.04)} ${f(j.shoulder.x + 0.052)} ${f(j.shoulder.y + 0.004)}`} fill="none" stroke={shade(c.top, -16)} strokeWidth={0.006} strokeLinecap="round" />}
+
+        <OutfitDetail outfit={outfit} j={j} colors={colors} ink={ink} flat={flat} torso={torso} id={`o${uid}`} />
+        {accessories.includes("backpack") && !mono && <BackpackStrap j={j} colors={colors} />}
+        {accessories.includes("scarf") && <Scarf j={j} colors={c} ink={ink} flat={flat} swing={pose.lean} />}
 
         {held === "guitar" && !mono && <GuitarOnBody j={j} colors={colors} ink={ink} flat={flat} skin={c.body} />}
 
@@ -284,8 +295,11 @@ export const Figure = ({ pose, colors, hair, outfit, gender, held, gaze, t = 0, 
               t={face.t}
               skin={colors.body}
               open={face.open}
+              strength={face.strength}
             />
           )}
+          {!mono && accessories.length > 0 && <HeadGear accessories={accessories} colors={colors} ink={ink} flat={flat} r={r} frontal={gaze === "camera"} faceCx={gaze === "camera" ? 0.06 : hair === "hood" ? 0.42 : 0.4} />}
+          {hat && <HatShape hat={hat} colors={c} ink={ink} flat={flat} r={r} />}
           {hair === "hat" && (
             <g fill={c.accent} {...edge} strokeWidth={(2 * OW) / r}>
               <rect x={-0.95} y={-1.62} width={1.9} height={1.1} rx={0.32} />

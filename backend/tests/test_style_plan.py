@@ -253,3 +253,10 @@ def test_generated_plan_carries_the_look():
     )
     plan = style_plan._to_plan(draft, 3)
     assert plan.global_.look == "riso"
+
+
+def test_a_sections_colour_grade_comes_through_and_defaults_to_none():
+    from app.style_plan import _section as to_section
+
+    assert to_section(SectionDraft(section_ref=0, visual_preset="orbits", intensity=0.5, palette_shift=0, camera_motion="none", lyric_animation="pop", transition_in="flash", grade="noir")).grade == "noir"
+    assert to_section(_section(0)).grade == "none"
