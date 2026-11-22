@@ -13,9 +13,14 @@ const PROP_SLOTS = [0.09, 0.92, 0.38, 0.64];
 export type PropPlacement = {
   kind: PropKind;
   x: number;
-  /** A bench under someone sitting: it stays with them rather than scrolling past with the world. */
+  /** A bench under someone sitting, or something leant on: it stays with them rather than scrolling past with the world. */
   seat: boolean;
+  /** Where it sits relative to the figure it stays with, in figure-heights (behind them for something leant on). */
+  offset?: number;
 };
+
+/** What a leaning figure can lean on, in order of preference. */
+const LEANABLE: PropKind[] = ["signpost", "lamp", "tree", "fence"];
 
 export function propPlacements(scene: ResolvedScene): PropPlacement[] {
   const sitterXs = [...new Set(scene.characters.filter((c) => c.action === "sit").map((c) => PLACEMENT_X[c.placement]))];
@@ -25,6 +30,14 @@ export function propPlacements(scene: ResolvedScene): PropPlacement[] {
     out.push({ kind, x: PROP_SLOTS[i % PROP_SLOTS.length], seat: false });
   });
   for (const x of sitterXs) out.push({ kind: "bench", x, seat: true });
+  // Someone leaning has something behind them: one of the scene's own props if there is one, else a lamp.
+  const faces = facings(scene);
+  scene.characters.forEach((c, i) => {
+    if (c.action !== "lean") return;
+    const at = out.findIndex((p) => !p.seat && LEANABLE.includes(p.kind));
+    const kind = at >= 0 ? out.splice(at, 1)[0].kind : "lamp";
+    out.push({ kind, x: PLACEMENT_X[c.placement], seat: true, offset: faces[i] === "right" ? -0.11 : 0.11 });
+  });
   return out;
 }
 

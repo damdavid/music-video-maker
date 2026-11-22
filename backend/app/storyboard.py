@@ -14,6 +14,7 @@ from app.models import (
     Gender,
     Hair,
     Hat,
+    Held,
     Illustration,
     Lyrics,
     Outfit,
@@ -23,6 +24,7 @@ from app.models import (
     SceneCharacter,
     SceneObject,
     Setting,
+    Symbol,
     Storyboard,
     StylePlan,
     TimeOfDay,
@@ -38,13 +40,15 @@ Rules:
 - Choose only from the allowed values; the renderer supports nothing else.
 - Cast: usually ONE protagonist (id like "hero", lowercase letters/digits/underscores). Add a second character only if the song is clearly about two people. Give them a short description, a gender (male or female, to match who they are), a hair style, an outfit, optionally a hat (cowboy, beanie, cap, top_hat, beret, sun_hat) and up to two accessories (glasses, sunglasses, scarf, headphones, backpack) when they say something about who the character is, and five hex colors (body, hair, top, bottom, accent). Pick clothing colors that stand out against the scene palette you are given, and keep the same cast across every scene.
 - One scene per section, in order. Follow the song's arc: settings, time of day and weather should change with the story and the energy, not repeat for every section.
-- Actions: walk/run for journeys and urgency, sit for reflection, slump for sadness or defeat, look_up for hope or wonder, reach for longing, wave for greeting or farewell, dance and jump for joy or release, idle for stillness.
+- Actions: walk/run for journeys and urgency, sit for reflection, slump for sadness or defeat, point for showing or accusing (toward the other character or the world), lean for ease and waiting (against a lamp, signpost or fence, which the renderer adds beside them), cross_arms for being closed off, cold or guarded, cheer for triumph (both arms up), look_up for hope or wonder, reach for longing, wave for greeting or farewell, dance and jump for joy or release, idle for stillness.
 - Expressions (neutral, happy, sad, surprised, calm, determined) are simple dot-eye faces. Set one when the moment's feeling differs from what the action suggests (a sad walk, a calm sit after a storm); leave it out to let the action pick.
 - "crowd" is the number (0-8) of background figures, who react to the beat. Set it for loneliness-in-a-crowd, parties, concerts, streets; set 0 for deliberate solitude; leave it out to let the renderer add a few in energetic sections.
 - Props are set dressing (lamp, bench, tree, house, suitcase, campfire, fence, signpost). Use few, and only when they add to the story.
 - A character can hold something ("holding": umbrella, suitcase, microphone, flowers, lantern, book, phone, flag, balloon, cup, or guitar, which is played with both hands). Give an item only when the moment calls for it: a microphone or guitar for a singer, an umbrella in rain, a suitcase for leaving, flowers or a lantern for tenderness or hope, a book for reflection. Most scenes need none.
 - With more than one character, "looks_at" says who a character looks at: another character's id (they turn to face each other) or "camera" for an address to the viewer. Use it where the two are connected in that moment; leave it out otherwise.
 - "moods" follow the lyrics: the lyric lines are numbered under "lyric_lines". Add an entry (the line number and an expression) at a line where the feeling turns or lands: a sad line, a surprise, a moment of determination or calm. A mood lasts until the next one, so a few well-placed entries beat one per line; the scene's own expression is used wherever there is none.
+- "wear" on a scene's character changes what they wear in that scene only (outfit, hat as a hat name or "none", accessories as a list): use it when the story passes time or the mood changes, such as a coat in winter, a hat put on for the journey, a suit for a wedding. Leave it out almost everywhere; the cast's own look is the default.
+- "cues" attach to lyric lines (numbered under "lyric_lines") like moods. A cue has a line number and a "symbol" (heart, star, rose, key, door, moon, bird, clock), which pops up beside the lead for a couple of seconds, and/or a "holding" item (as above) the lead takes up from that line until the next cue that holds something. Use a symbol only on a line that names the thing (a heart for love, a door for leaving, a clock for time, a bird for freedom); a few well-placed cues beat many.
 - A section's "user_description" is the creator's direction for that scene; follow it.
 - Custom objects (listed under "Custom objects", if any) are the creator's own props. Place them in scenes where they fit, by object_id, using only the given ids; never invent ids.
 - Each scene's description is one short line a non-technical reader can follow.
@@ -91,10 +95,17 @@ class LooseMood(BaseModel):
     expression: Expression
 
 
+class LooseCue(BaseModel):
+    line: int = Field(description="Number of the lyric line, as given under lyric_lines")
+    symbol: Symbol | None = None
+    holding: Held | None = None
+
+
 class LooseStoryboard(BaseModel):
     cast: list[LooseCharacter] = Field(default_factory=list, description="Usually one character, at most 6")
     scenes: list[LooseScene] = Field(default_factory=list)
     moods: list[LooseMood] = Field(default_factory=list, description="The lead's expression at chosen lyric lines")
+    cues: list[LooseCue] = Field(default_factory=list, description="Symbols and held items at chosen lyric lines")
 
 
 MAX_CAST = 6
@@ -132,6 +143,17 @@ def _scene(s: LooseScene, cast_ids: set[str], object_ids: set[str]) -> dict:
         "props": list(dict.fromkeys(s.props))[:4],
         "crowd": None if s.crowd is None else int(_clamp(s.crowd, 0, 8)),
     }
+
+
+def _cues(draft: list[LooseCue], lyrics: Lyrics | None) -> list[dict]:
+    """Like moods, line numbers become times; a cue that asks for nothing, or for a missing line, is dropped."""
+    if not lyrics:
+        return []
+    at: dict[float, dict] = {}
+    for c in draft:
+        if 0 <= c.line < len(lyrics.lines) and (c.symbol or c.holding):
+            at[round(lyrics.lines[c.line].start, 2)] = {"at": round(lyrics.lines[c.line].start, 2), "symbol": c.symbol, "holding": c.holding}
+    return [at[t] for t in sorted(at)]
 
 
 def _normalize(board: Storyboard, n_sections: int) -> Storyboard:
@@ -213,6 +235,7 @@ def generate_storyboard(
             "objects": [o.model_dump() for o in objects],
             "scenes": [_scene(s, cast_ids, object_ids) for s in draft.scenes],
             "moods": _moods(draft.moods, lyrics),
+            "cues": _cues(draft.cues, lyrics),
         }
     )
     return _normalize(board, len(analysis.sections))

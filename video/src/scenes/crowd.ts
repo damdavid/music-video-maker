@@ -17,15 +17,15 @@ export function crowdSize(set: number | null, intensity: number, lead: Action | 
   return Math.round(2 + ((intensity - AUTO_FROM) / (1 - AUTO_FROM)) * 4);
 }
 
-export type CrowdAction = Extract<Action, "idle" | "walk" | "dance" | "wave" | "jump">;
+export type CrowdAction = Extract<Action, "idle" | "walk" | "dance" | "wave" | "jump" | "cheer">;
 
 /**
  * What a background figure does: they follow the music, so the crowd livens up with the section (swaying, cheering with
- * a raised arm, jumping). `pick` (0..1) is the figure's own die roll, so no two do the same thing at the same time.
+ * a raised arm, throwing both up, jumping). `pick` (0..1) is the figure's own die roll, so no two do the same thing at the same time.
  */
 export function crowdAction(intensity: number, pick: number, walker: boolean): CrowdAction {
   if (intensity < 0.4) return walker ? "walk" : "idle";
   if (intensity < 0.7) return pick < 0.35 ? "dance" : walker ? "walk" : "idle";
   if (intensity < 0.85) return pick < 0.5 ? "dance" : pick < 0.8 ? "wave" : "idle";
-  return pick < 0.35 ? "jump" : pick < 0.7 ? "wave" : "dance";
+  return pick < 0.35 ? "jump" : pick < 0.7 ? "cheer" : "dance";
 }

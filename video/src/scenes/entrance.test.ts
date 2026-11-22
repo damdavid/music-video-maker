@@ -19,7 +19,7 @@ describe("poseWithEntrance", () => {
   });
 
   it("stays finite for every action", () => {
-    for (const action of ["idle", "walk", "run", "sit", "wave", "look_up", "reach", "dance", "jump", "slump"] as const)
+    for (const action of ["idle", "walk", "run", "sit", "wave", "look_up", "reach", "dance", "jump", "slump", "point", "lean", "cross_arms", "cheer"] as const)
       for (let i = 0; i <= 20; i++) {
         const p = poseWithEntrance(action, ctx, (i / 20) * ENTER_S);
         expect(Object.values(p).flat().every((v) => Number.isFinite(v))).toBe(true);

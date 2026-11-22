@@ -5,6 +5,7 @@ import { Camera, cameraState, type CameraState } from "./Camera";
 import { background, foreground, mixPalettes, safePalette, shiftPalette } from "./color";
 import { easeInOutCubic } from "./easing";
 import { blendGrades, gradeFilter, gradeStrength } from "./grade";
+import { cuesAt } from "./scenes/cues";
 import { expressionStrength, moodAt } from "./scenes/mood";
 import { fallbackPlan } from "./fallbackPlan";
 import { seriesFrame, smoothed } from "./features";
@@ -160,7 +161,7 @@ export const MusicVideo = ({ analysis, lyrics, plan: planProp, storyboard, meta,
               <Preset uid={`p${i}`} frame={seriesFrame(analysis, t)} t={t} width={width} height={height} analysis={analysis} palette={pal} intensity={s.intensity} seed={seed} params={params} />
             </Camera>
           )}
-          {scene && <SceneLayer uid={`sc${i}`} scene={scene} cast={cast} objects={objects} t={t} width={width} height={height} analysis={analysis} palette={pal} seed={seed} showSky={mode === "scenes"} cam={cam} lyrics={lyrics} framing={framing} enterAt={timeline.boundaries[i].start} sectionProgress={bounds[i] ? clamp((t - bounds[i].start) / Math.max(bounds[i].end - bounds[i].start, 0.001)) : 0} intensity={s.intensity} autoCrowd={settings.crowds ?? true} leadMood={moodAt(storyboard?.moods ?? [], t)} expressStrength={expressionStrength(energy)} />}
+          {scene && <SceneLayer uid={`sc${i}`} scene={scene} cast={cast} objects={objects} t={t} width={width} height={height} analysis={analysis} palette={pal} seed={seed} showSky={mode === "scenes"} cam={cam} lyrics={lyrics} framing={framing} enterAt={timeline.boundaries[i].start} sectionProgress={bounds[i] ? clamp((t - bounds[i].start) / Math.max(bounds[i].end - bounds[i].start, 0.001)) : 0} intensity={s.intensity} autoCrowd={settings.crowds ?? true} leadMood={moodAt(storyboard?.moods ?? [], t)} cues={cuesAt(storyboard?.cues ?? [], t)} expressStrength={expressionStrength(energy)} />}
         </>
       );
     };

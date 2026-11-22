@@ -10,6 +10,10 @@ import { beatPhase, beatPulse } from "../timing";
 import { ENTER_STAGGER, groundSpeed, poseWithEntrance, poseFor, type ActionCtx } from "./actions";
 import { crowdAction, crowdSize } from "./crowd";
 import type { Mood } from "./face";
+import type { CueState } from "./cues";
+import { eyeLook } from "./gaze";
+import { weatherMood } from "./weatherMusic";
+import { SymbolArt } from "./Symbols";
 import { holdPose } from "./held";
 import { Background, bleedOf } from "./backgrounds";
 import { MAX_ZOOM, type Framing } from "./direction";
@@ -19,7 +23,7 @@ import { Figure } from "./Figure";
 import { FreeformBackground, FreeformFigure } from "./freeform";
 import { ObjectArt } from "./objects";
 import { facings, objectPlacements, PLACEMENT_X, propPlacements } from "./layout";
-import type { ResolvedCharacter, ResolvedObject, ResolvedScene } from "./normalize";
+import { dressed, type ResolvedCharacter, type ResolvedObject, type ResolvedScene } from "./normalize";
 import { PropShape } from "./props";
 import { parseSafeSvgCached } from "./safeSvg";
 import { Ambient, celestialPos, Sky, WeatherOverlay } from "./sky";
@@ -55,6 +59,8 @@ type Props = {
   /** What the lyrics call for the lead's face right now, and how strongly the music shows it. */
   leadMood?: Mood | null;
   expressStrength?: number;
+  /** What the lyric cues call for now: a symbol beside the lead, an item put in their hand. */
+  cues?: CueState;
 };
 
 const WIND: Record<Weather, number> = { clear: 0.15, fog: 0.05, rain: 0.6, snow: 0.4 };
@@ -67,7 +73,7 @@ const wrapX = (x: number, w: number, margin: number) => {
   return ((((x + margin) % span) + span) % span) - margin;
 };
 
-export const SceneLayer = ({ uid, scene, cast, objects, t, width: w, height: h, analysis, palette, seed, showSky, cam, lyrics, framing, enterAt, sectionProgress = 0, intensity = 0.5, autoCrowd = true, leadMood = null, expressStrength = 1 }: Props) => {
+export const SceneLayer = ({ uid, scene, cast, objects, t, width: w, height: h, analysis, palette, seed, showSky, cam, lyrics, framing, enterAt, sectionProgress = 0, intensity = 0.5, autoCrowd = true, leadMood = null, expressStrength = 1, cues = { symbol: null, holding: null } }: Props) => {
   // The light slowly moves on toward the next time of day over the section.
   const c = driftColors(palette, scene.time_of_day, sectionProgress);
   const portrait = h > w;
@@ -118,6 +124,16 @@ export const SceneLayer = ({ uid, scene, cast, objects, t, width: w, height: h, 
       hat: ([null, null, "cowboy", "beanie", "cap", "top_hat", "beret", "sun_hat"] as const)[Math.floor(rand() * 8)],
     }));
   }, [crowdCount, seed, w]);
+
+  // Each figure's pose, which a figure looking at another also needs (their eyes follow the other's jumps).
+  const poseOf = (i: number) => {
+    const { sc } = members[i];
+    const ft = t + i * 0.43;
+    const acting = enterAt === undefined ? poseFor(sc.action, ctx(ft, i)) : poseWithEntrance(sc.action, ctx(ft, i), t - enterAt - i * ENTER_STAGGER);
+    // What they hold takes over the arms it needs; the other arm keeps doing what the action does. A lyric cue hands the lead something.
+    const holding = i === 0 && cues.holding ? cues.holding : sc.holding;
+    return { ft, holding, pose: holding ? holdPose(acting, holding, { t: ft, beat, energy }) : acting };
+  };
 
   return (
     <svg width={w} height={h} style={{ position: "absolute", inset: 0 }}>
@@ -181,7 +197,7 @@ export const SceneLayer = ({ uid, scene, cast, objects, t, width: w, height: h, 
             <PropShape
               key={`${p.kind}-${i}`}
               kind={p.kind}
-              x={p.seat ? p.x * w : wrapX(p.x * w - travel, w, unit * 0.4)}
+              x={p.seat ? p.x * w + (p.offset ?? 0) * unit : wrapX(p.x * w - travel, w, unit * 0.4)}
               gy={gy}
               unit={unit}
               c={c}
@@ -197,24 +213,29 @@ export const SceneLayer = ({ uid, scene, cast, objects, t, width: w, height: h, 
         })}
 
         {members.map(({ sc, ch, facing }, i) => {
-          const ft = t + i * 0.43;
-          const acting = enterAt === undefined ? poseFor(sc.action, ctx(ft, i)) : poseWithEntrance(sc.action, ctx(ft, i), t - enterAt - i * ENTER_STAGGER);
-          // What they hold takes over the arms it needs; the other arm keeps doing what the action does.
-          const pose = sc.holding ? holdPose(acting, sc.holding, { t: ft, beat, energy }) : acting;
+          const { ft, holding, pose } = poseOf(i);
+          const worn = dressed(ch, sc.wear);
+          const at = sc.lookAt && sc.lookAt !== "camera" ? members.findIndex((m) => m.ch.id === sc.lookAt) : -1;
+          const look = eyeLook({ t: ft, seed, variant: i, action: sc.action, camera: sc.lookAt === "camera", y: pose.y, target: at >= 0 ? { y: poseOf(at).pose.y } : undefined });
           const art = scene.illustration === "freeform" && ch.svg ? parseSafeSvgCached(ch.svg) : null;
           const x = PLACEMENT_X[sc.placement] * w;
           // A character without usable art is drawn with the library rig instead of disappearing.
           return art ? (
             <FreeformFigure key={`${ch.id}-${i}`} art={art} uid={`${uid}-c${i}`} pose={pose} action={sc.action} t={ft} beat={beat} x={x} y={gy} size={unit * ch.build} facing={facing} mood={sc.expression} faceColor={featureColor(ch.colors.body)} shadow={c.ink} />
           ) : (
-            <Figure key={`${ch.id}-${i}`} pose={pose} colors={ch.colors} hair={ch.hair} outfit={ch.outfit} hat={ch.hat ?? undefined} accessories={ch.accessories} gender={ch.gender} rim={light.rim > 0.03 ? { color: mix(c.light, "#ffffff", 0.35), strength: light.rim, id: `${uid}-rim${i}` } : undefined} held={sc.holding ?? undefined} gaze={sc.lookAt === "camera" ? "camera" : undefined} t={ft} x={x} y={gy} size={unit * ch.build} facing={facing} face={{ mood: i === 0 && leadMood ? leadMood : sc.expression, t: ft, open: i === 0 ? mouthOpen(lyrics, t) : 0, strength: expressStrength }} shadow={c.ink} />
+            <Figure key={`${ch.id}-${i}`} pose={pose} colors={ch.colors} hair={ch.hair} outfit={worn.outfit} hat={worn.hat ?? undefined} accessories={worn.accessories} gender={ch.gender} rim={light.rim > 0.03 ? { color: mix(c.light, "#ffffff", 0.35), strength: light.rim, id: `${uid}-rim${i}` } : undefined} held={holding ?? undefined} gaze={sc.lookAt === "camera" ? "camera" : undefined} t={ft} x={x} y={gy} size={unit * ch.build} facing={facing} face={{ mood: i === 0 && leadMood ? leadMood : sc.expression, t: ft, open: i === 0 ? mouthOpen(lyrics, t) : 0, strength: expressStrength, look }} shadow={c.ink} />
           );
         })}
+
+        {cues.symbol && lead && (
+          // Beside the lead's head, on the side they face.
+          <SymbolArt name={cues.symbol.name} age={cues.symbol.age} x={PLACEMENT_X[lead.sc.placement] * w + (lead.facing === "right" ? 1 : -1) * leadSize * 0.3} y={gy - leadSize * (lead.sc.action === "sit" ? 0.82 : 1.12)} size={leadSize * 0.26} ink={c.ink} t={t} />
+        )}
       </g>
 
       <LightPulse w={w} h={h} color={c.light} amount={light.flash} />
       <LensFlare uid={uid} w={w} h={h} x={sun.x} y={sun.y} amount={light.flare} color={mix(c.celestial, "#ffffff", 0.5)} t={t} time={scene.time_of_day} />
-      <WeatherOverlay uid={uid} weather={scene.weather} w={w} h={h} t={t} c={c} seed={seed} />
+      <WeatherOverlay uid={uid} weather={scene.weather} w={w} h={h} t={t} c={c} seed={seed} mood={weatherMood(energy, smoothed(analysis, "onset_strength", t))} />
     </svg>
   );
 };

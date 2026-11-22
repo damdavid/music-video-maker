@@ -111,6 +111,14 @@ def build(kind: str, origin, camera, seed: int = 1):
     cfg = KIND[kind]
     seed %= 1_000_000  # node seeds are signed ints; the song seed is a 32-bit hash
     t = _Tree(f"{kind}-{seed}")
+    # How much weather there is (0..1), keyed over the song on an empty's X: each drop has its own threshold and shows only below it.
+    amount_obj = bpy.data.objects.new(f"{kind}-amount", None)
+    amount_obj.location.x = 1.0
+    bpy.context.scene.collection.objects.link(amount_obj)
+    amount_obj["mvm_amount"] = True
+    amount_info = t.node("GeometryNodeObjectInfo")
+    amount_info.inputs["Object"].default_value = amount_obj
+    amount = t.separate(amount_info.outputs["Location"])[0]
     L, Hh = cfg["width"], cfg["height"]
     half = L / 2
 
@@ -125,6 +133,11 @@ def build(kind: str, origin, camera, seed: int = 1):
     _socket(phase_n, "Seed").default_value = seed + 17
     phase = _socket(phase_n, "Value", "VALUE", out=True)
 
+    thr_n = t.node("FunctionNodeRandomValue", data_type="FLOAT")
+    _socket(thr_n, "Min", "VALUE").default_value = 0.0
+    _socket(thr_n, "Max", "VALUE").default_value = 1.0
+    _socket(thr_n, "Seed").default_value = seed + 31
+    shown = t.math("LESS_THAN", _socket(thr_n, "Value", "VALUE", out=True), amount)
     time = t.node("GeometryNodeInputSceneTime").outputs["Seconds"]
     cam = t.node("GeometryNodeObjectInfo")
     cam.inputs["Object"].default_value = camera
@@ -165,7 +178,7 @@ def build(kind: str, origin, camera, seed: int = 1):
     t.link(points.outputs["Points"], inst.inputs["Points"])
     # Drops right at the lens would be enormous: shrink them to nothing inside a metre and a half.
     near = t.vec("DISTANCE", pos, cam.outputs["Location"])
-    fade = t.math("MAXIMUM", t.math("MINIMUM", t.math("MULTIPLY", t.math("SUBTRACT", near, 0.7), 0.7), 1.0), 0.0)
+    fade = t.math("MULTIPLY", t.math("MAXIMUM", t.math("MINIMUM", t.math("MULTIPLY", t.math("SUBTRACT", near, 0.7), 0.7), 1.0), 0.0), shown)
     t.link(t.combine(fade, fade, fade), inst.inputs["Scale"])
     t.link(mesh, inst.inputs["Instance"])
     inst.inputs["Rotation"].default_value = rotation
@@ -180,4 +193,16 @@ def build(kind: str, origin, camera, seed: int = 1):
     mod = obj.modifiers.new(kind, "NODES")
     mod.node_group = t.tree
     obj.visible_shadow = False
-    return [obj]
+    return [obj, amount_obj]
+
+
+def key_amount(objs, amount: float, frame: int) -> None:
+    """Keys how much weather there is for the stage's rain, snow and fog (see rules.weather_mood)."""
+    for obj in objs:
+        if obj.get("mvm_amount"):
+            obj.location.x = amount
+            obj.keyframe_insert("location", frame=frame, index=0)
+        elif obj.get("mvm_fog") is not None:
+            node = next(n for n in obj.data.materials[0].node_tree.nodes if n.bl_idname == "ShaderNodeVolumePrincipled")
+            node.inputs["Density"].default_value = obj["mvm_fog"] * (0.4 + 0.9 * amount)
+            node.inputs["Density"].keyframe_insert("default_value", frame=frame)

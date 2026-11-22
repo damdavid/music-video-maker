@@ -11,13 +11,16 @@ export type HeldKind = NonNullable<SceneCharacter["holding"]>;
 export type PropKind = NonNullable<Scene["props"]>[number];
 export type Placement = "left" | "center" | "right";
 
+/** What a character wears in one scene in place of their usual look; null fields keep the cast's own. */
+export type ResolvedWear = { outfit: Outfit | null; hat: Hat | "none" | null; accessories: Accessory[] | null };
+
 export type ObjectSize = NonNullable<CustomObject["size"]>;
 
 export type Illustration = "library" | "freeform";
 export type ResolvedObject = { id: string; size: ObjectSize; svg: string | null };
 export type ResolvedSceneObject = { object_id: string; placement: Placement };
 export type ResolvedCharacter = { id: string; gender: Gender; hair: Hair; outfit: Outfit; hat: Hat | null; accessories: Accessory[]; build: number; colors: CharacterColors; svg: string | null };
-export type ResolvedSceneCharacter = { character_id: string; action: Action; expression: Mood; placement: Placement; facing: "left" | "right"; holding: HeldKind | null; lookAt: string | null };
+export type ResolvedSceneCharacter = { character_id: string; action: Action; expression: Mood; placement: Placement; facing: "left" | "right"; holding: HeldKind | null; lookAt: string | null; wear: ResolvedWear | null };
 export type ResolvedScene = {
   setting: Setting;
   time_of_day: TimeOfDay;
@@ -55,11 +58,18 @@ export const resolveScene = (s: Scene, boardDefault: Illustration = "library"): 
   weather: s.weather ?? "clear",
   characters: (s.characters ?? []).map((c) => {
     const action = c.action ?? "idle";
-    return { character_id: c.character_id, action, expression: c.expression ?? defaultExpression(action), placement: c.placement ?? "center", facing: c.facing ?? "right", holding: c.holding ?? null, lookAt: c.looks_at ?? null };
+    return { character_id: c.character_id, action, expression: c.expression ?? defaultExpression(action), placement: c.placement ?? "center", facing: c.facing ?? "right", holding: c.holding ?? null, lookAt: c.looks_at ?? null, wear: c.wear ? { outfit: c.wear.outfit ?? null, hat: c.wear.hat ?? null, accessories: c.wear.accessories ? [...c.wear.accessories] : null } : null };
   }),
   crowd: s.crowd ?? null,
   props: s.props ?? [],
   objects: (s.objects ?? []).map((o) => ({ object_id: o.object_id, placement: o.placement ?? "right" })),
   illustration: s.illustration ?? boardDefault,
   background_svg: s.background_svg ?? null,
+});
+
+/** What a cast member wears in a scene: the scene's own choices over their usual look. */
+export const dressed = (ch: ResolvedCharacter, wear: ResolvedWear | null): { outfit: Outfit; hat: Hat | null; accessories: Accessory[] } => ({
+  outfit: wear?.outfit ?? ch.outfit,
+  hat: wear?.hat === "none" ? null : (wear?.hat ?? ch.hat),
+  accessories: wear?.accessories ?? ch.accessories,
 });

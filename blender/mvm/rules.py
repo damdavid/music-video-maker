@@ -27,7 +27,7 @@ def crowd_action(intensity: float, pick: float, walker: bool) -> str:
         return "dance" if pick < 0.35 else "walk" if walker else "idle"
     if intensity < 0.85:
         return "dance" if pick < 0.5 else "wave" if pick < 0.8 else "idle"
-    return "jump" if pick < 0.35 else "wave" if pick < 0.7 else "dance"
+    return "jump" if pick < 0.35 else "cheer" if pick < 0.7 else "dance"
 
 
 MOOD_HOLD_S = 8.0
@@ -114,3 +114,54 @@ def beat_envelope(beats: list[float], t: float, decay: float = 0.22) -> float:
             break
         last = b
     return 0.0 if last is None else math.exp(-((t - last) / decay) ** 2 * 1.5)
+
+
+# ------------------------------------------------------------------ lyric cues, eyes and weather
+
+SYMBOL_S = 2.6
+HOLD_S = 8.0
+
+
+def cues_at(cues: list[dict] | None, t: float) -> dict:
+    """What the lyric cues call for at t: a symbol beside the lead (with its age) and an item put in their hand."""
+    symbol = holding = None
+    for c in cues or []:
+        if c["at"] > t:
+            continue
+        if c.get("symbol") and (symbol is None or c["at"] > symbol[0]):
+            symbol = (c["at"], c["symbol"])
+        if c.get("holding") and (holding is None or c["at"] > holding[0]):
+            holding = (c["at"], c["holding"])
+    return dict(
+        symbol=(symbol[1], t - symbol[0]) if symbol and t - symbol[0] <= SYMBOL_S else None,
+        holding=holding[1] if holding and t - holding[0] <= HOLD_S else None,
+    )
+
+
+_LOOK = {"look_up": (0.2, -0.85), "sit": (0.3, 0.4), "slump": (0.1, 0.65), "cross_arms": (0.2, 0.45), "reach": (0.7, -0.2), "point": (0.85, 0.0)}
+
+
+def eye_look(noise, action: str, camera: bool, lift: float, target_lift: float | None = None) -> tuple[float, float]:
+    """Where the eyes look, each -1..1 (y negative is up; `lift` is how far the figure is off the ground, up positive).
+    `noise(channel, rate)` gives smooth noise in -1..1 for this figure and moment."""
+    clamp = lambda v: max(-1.0, min(1.0, v))
+    gx, gy = 0.3 * noise(0, 0.5), 0.25 * noise(1, 0.4)
+    if camera:
+        return 0.06 * gx, 0.06 * gy
+    if target_lift is not None:
+        return clamp(0.85 + 0.15 * gx), clamp((lift - target_lift) * 9 + 0.5 * gy)
+    bx, by = _LOOK.get(action, (0.35, 0.0))
+    return clamp(bx + gx), clamp(by + gy)
+
+
+def weather_mood(energy: float, onset: float) -> float:
+    """How much weather the music asks for, 0.2..1: heavier rain, snow and fog when louder."""
+    return min(1.0, max(0.2, 0.25 + 0.7 * energy + 0.15 * onset))
+
+
+def symbol_size(age: float) -> float:
+    """How big a symbol is `age` seconds after it appears: a pop (a little overshoot) then a fade at the end, 0..~1.1."""
+    c1 = 1.70158
+    p = min(1.0, max(0.0, age / 0.35))
+    pop = p if p in (0.0, 1.0) else 1 + (c1 + 1) * (p - 1) ** 3 + c1 * (p - 1) ** 2
+    return max(0.0, pop) * min(1.0, max(0.0, (SYMBOL_S - age) / 0.6))

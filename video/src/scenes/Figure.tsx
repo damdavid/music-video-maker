@@ -35,7 +35,7 @@ type Props = {
   mono?: string;
   opacity?: number;
   /** Omitted for faceless figures (background silhouettes). `open` is the mouth opening 0..1 while singing. */
-  face?: { mood: Mood; t: number; open?: number; strength?: number };
+  face?: { mood: Mood; t: number; open?: number; strength?: number; look?: { x: number; y: number } };
   /** Contact shadow colour; omitted for none. */
   shadow?: string;
 };
@@ -296,6 +296,7 @@ export const Figure = ({ pose, colors, hair, outfit, hat, accessories = [], gend
               skin={colors.body}
               open={face.open}
               strength={face.strength}
+              look={face.look}
             />
           )}
           {!mono && accessories.length > 0 && <HeadGear accessories={accessories} colors={colors} ink={ink} flat={flat} r={r} frontal={gaze === "camera"} faceCx={gaze === "camera" ? 0.06 : hair === "hood" ? 0.42 : 0.4} />}

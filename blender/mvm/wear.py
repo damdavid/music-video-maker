@@ -215,17 +215,20 @@ class Held:
 
     def __init__(self, fig, kind: str, colors: dict):
         self.fig, self.kind, self.colors = fig, kind, colors
+        before = set(bpy.data.objects)
         self.grip = None
         self.tilt = 0.0
         self.tilt_y = 0.0
         H = fig.h
         if kind == "guitar":
             self._guitar()
-            return
-        from .figure import pivot  # figure.py imports this module for the wearables
+        else:
+            from .figure import pivot  # figure.py imports this module for the wearables
 
-        self.grip = pivot(f"{fig.name}-grip", fig.wrist["R"], (0.0, 0.0, -0.03 * H))
-        self._build(kind)
+            self.grip = pivot(f"{fig.name}-grip", fig.wrist["R"], (0.0, 0.0, -0.03 * H))
+            self._build(kind)
+        self.objects = list(set(bpy.data.objects) - before)
+        self.visible = True
 
     def _build(self, kind: str) -> None:
         fig, g, H, c = self.fig, self.grip, self.fig.h, self.colors
@@ -288,7 +291,6 @@ class Held:
         fig, H, c = self.fig, self.fig.h, self.colors
         wood = _mat(fig, "guitar", c["accent"], 0.4)
         dark = _mat(fig, "guitar-dark", _shade(c["bottom"], -25), 0.5)
-        fig.abduct["L"] = GUITAR_ABDUCT
         # Where the far hand ends up, in the spine's frame, from the same rotations Figure.apply gives the arm.
         sh = Vector((SHOULDER_X * fig.gender_scale() * H, 0.0, SHOULDER_Z * H))
         upper = Euler((math.radians(-GUITAR_ARM[0]), math.radians(-GUITAR_ABDUCT), 0.0), "XYZ").to_matrix()
@@ -323,3 +325,65 @@ class Held:
     def key(self, frame: int) -> None:
         if self.grip is not None:
             self.grip.keyframe_insert("rotation_euler", frame=frame)
+
+    def show(self, frame: int, on: bool) -> None:
+        """Put it in or out of sight from this frame on (an item handed over at a lyric line appears when it is)."""
+        for obj in self.objects:
+            obj.hide_render = not on
+            obj.keyframe_insert("hide_render", frame=frame)
+        self.visible = on
+
+
+# ------------------------------------------------------------------ lyric symbols
+
+
+def _extruded(name: str, outline, color: str, depth: float):
+    """A thin solid from a flat outline in the XZ plane, `depth` thick along Y, facing -Y."""
+    bm = bmesh.new()
+    front = [bm.verts.new((x, -depth / 2, z)) for x, z in outline]
+    back = [bm.verts.new((x, depth / 2, z)) for x, z in outline]
+    bm.faces.new(list(reversed(front)))
+    bm.faces.new(back)
+    n = len(outline)
+    for i in range(n):
+        bm.faces.new((front[i], front[(i + 1) % n], back[(i + 1) % n], back[i]))
+    bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
+    mesh = bpy.data.meshes.new(name)
+    bm.to_mesh(mesh)
+    bm.free()
+    mesh.materials.append(materials.principled(f"symbol-{color}", color, 0.45, emission=0.6))
+    obj = bpy.data.objects.new(name, mesh)
+    bpy.context.scene.collection.objects.link(obj)
+    return obj
+
+
+class SymbolRig:
+    """A symbol's solids under one empty, which is placed, sized and turned toward the camera each frame it is on."""
+
+    def __init__(self, name: str):
+        from .figure import pivot
+        from .symbols import SYMBOLS
+
+        before = set(bpy.data.objects)
+        self.root = pivot(f"symbol-{name}", None)
+        for i, (outline, color) in enumerate(SYMBOLS[name]):
+            part_obj = _extruded(f"symbol-{name}-{i}", outline, color, 0.07)
+            part_obj.parent = self.root
+            part_obj.location.y = -0.004 * i  # later layers sit a hair in front of earlier ones
+        self.objects = list(set(bpy.data.objects) - before)
+        self.shown = None
+
+    def hide(self, frame: int) -> None:
+        """Scale to nothing; keys only when it changes."""
+        if self.shown is not False:
+            self.root.scale = (0.0, 0.0, 0.0)
+            self.root.keyframe_insert("scale", frame=frame)
+            self.shown = False
+
+    def place(self, frame: int, location, size: float, yaw: float) -> None:
+        self.root.location = location
+        self.root.scale = (size, size, size)
+        self.root.rotation_euler = (0.0, 0.0, yaw)
+        for prop in ("location", "scale", "rotation_euler"):
+            self.root.keyframe_insert(prop, frame=frame)
+        self.shown = True

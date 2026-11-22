@@ -247,7 +247,32 @@ function slump(c: ActionCtx): Pose {
   return pose({ lean: 15 + b, head: 30 + 2 * b, armL: [10, 10], armR: [2, 8], legL: [4, -10], legR: [-3, -8], stretch: 1 + 0.004 * b });
 }
 
-const ACTIONS: Record<Action, (ctx: ActionCtx) => Pose> = { idle, walk, run, sit, wave, look_up: lookUp, reach, dance, jump, slump };
+function point(c: ActionCtx): Pose {
+  const b = sin((c.t / 2.8) * TAU);
+  // One straight arm out toward what they point at, the body leaning into it a little.
+  return pose({ lean: 3 + 0.5 * b + nod(c, 2), head: 1, armR: [86 + 2 * b, 4], armL: [4, 8], legR: [6, -6], legL: [-4, -2], stretch: breath(c.t) });
+}
+
+function lean(c: ActionCtx): Pose {
+  const b = sin((c.t / 3.8) * TAU);
+  // Weight back on a support behind them, one foot crossed in front, hands loose.
+  return pose({ lean: -12 + 0.6 * b, head: 4 + nod(c, 3), armL: [8, 36], armR: [-2, 24], legR: [14, -6], legL: [-6, -2], stretch: breath(c.t) });
+}
+
+function crossArms(c: ActionCtx): Pose {
+  const b = sin((c.t / 3.4) * TAU);
+  // Arms folded across the chest, shoulders in, head a little down.
+  return pose({ lean: 3 + 0.4 * b, head: 7, armR: [34, 118], armL: [28, 124], legL: [0, -2], legR: [0, -2], stretch: breath(c.t) });
+}
+
+function cheer(c: ActionCtx): Pose {
+  const s = sin(Math.PI * c.beat);
+  const bounce = Math.abs(s);
+  // Both arms thrown up and pumping on the beat, bouncing on the toes.
+  return pose({ y: -0.022 * bounce * (0.6 + 0.8 * c.energy), lean: -2, head: -7 + 2 * s, armR: [166 + 8 * s, 6], armL: [160 - 8 * s, 6], legR: [4 * s, -6 - 10 * (1 - bounce)], legL: [-4 * s, -6 - 10 * bounce], stretch: breath(c.t) });
+}
+
+const ACTIONS: Record<Action, (ctx: ActionCtx) => Pose> = { idle, walk, run, sit, wave, look_up: lookUp, reach, dance, jump, slump, point, lean, cross_arms: crossArms, cheer };
 
 // Follow-through: parts further from the body's core react a little later, so motion rolls down the arm.
 const LAG_UPPER = 0.045;
@@ -259,7 +284,7 @@ const earlier = (c: ActionCtx, dt: number): ActionCtx => ({ ...c, t: c.t - dt, b
 const HAIR_STREAM: Partial<Record<Action, number>> = { walk: 5, run: 14 };
 
 /** How much each action feels the pulse of the music; dancing and jumping carry their own accents. */
-const GROOVE: Partial<Record<Action, number>> = { idle: 1, sit: 0.5, wave: 1, look_up: 0.5, reach: 0.6, slump: 0.25, walk: 0.5, run: 0.3 };
+const GROOVE: Partial<Record<Action, number>> = { idle: 1, sit: 0.5, wave: 1, look_up: 0.5, reach: 0.6, slump: 0.25, walk: 0.5, run: 0.3, point: 0.6, lean: 0.4, cross_arms: 0.3 };
 
 /**
  * A change in stretch around each beat: a squash just before it (anticipation), a quick stretch on it, and a small

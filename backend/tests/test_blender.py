@@ -11,7 +11,7 @@ from app.models import Project, Settings
 from tests.client import make_client
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "blender"))
-from mvm import body, hairgen, motion, rules, timing  # noqa: E402
+from mvm import body, hairgen, motion, rules, symbols, timing  # noqa: E402
 
 
 def test_the_lyric_fade_defaults_to_gentle_including_for_projects_saved_before_it_existed():
@@ -287,7 +287,7 @@ def test_the_crowd_rules_match_the_other_renderer():
     assert rules.crowd_size(None, 0.3, "dance", True) == 0
     assert 1 < rules.crowd_size(None, 0.6, "dance", True) < rules.crowd_size(None, 1.0, "dance", True) <= rules.MAX_CROWD
     assert rules.crowd_size(None, 1.0, "sit", True) == 0 and rules.crowd_size(None, 1.0, "dance", False) == 0
-    assert {rules.crowd_action(0.95, p, False) for p in (0, 0.2, 0.5, 0.95)} >= {"jump", "wave", "dance"}
+    assert {rules.crowd_action(0.95, p, False) for p in (0, 0.2, 0.5, 0.95)} >= {"jump", "cheer", "dance"}
     assert rules.crowd_action(0.5, 0.9, True) == "walk" and rules.crowd_action(0.5, 0.9, False) == "idle"
 
 
@@ -318,3 +318,59 @@ def test_light_follows_the_song():
     assert rules.next_time_of_day("dusk") == "night" and rules.next_time_of_day("night") == "dawn"
     assert rules.drift_amount(0) == 0 and 0 < rules.drift_amount(1) <= rules.DRIFT
     assert rules.beat_envelope([1.0, 2.0], 1.0) == 1.0 and rules.beat_envelope([1.0, 2.0], 1.5) < 0.2 and rules.beat_envelope([1.0], 0.5) == 0.0
+
+
+def test_the_new_actions_pose_the_arms_as_described():
+    ctx = motion.Ctx(t=1.0, beat=2.25, beat_len=0.5, energy=0.6, seed=3)
+    assert motion.pose_for("point", ctx).arm_r[0] > 70
+    crossed = motion.pose_for("cross_arms", ctx)
+    assert crossed.arm_r[1] > 90 and crossed.arm_l[1] > 90
+    cheer = motion.pose_for("cheer", ctx)
+    assert min(cheer.arm_r[0], cheer.arm_l[0]) > 140
+    assert motion.pose_for("lean", ctx).lean < -5
+    assert motion.pose_for("cheer", motion.Ctx(t=1.0, beat=2.5, beat_len=0.5, energy=0.6, seed=3)).y > motion.pose_for("cheer", motion.Ctx(t=1.0, beat=2.0, beat_len=0.5, energy=0.6, seed=3)).y
+    for action in ("point", "lean", "cross_arms", "cheer"):
+        assert action in timing.KINDS and action in motion.ACTIONS
+        p = motion.pose_with_entrance(action, ctx, 0.2)
+        assert all(math.isfinite(v) for v in (p.lean, p.head, p.y, *p.arm_l, *p.arm_r, *p.leg_l, *p.leg_r))
+
+
+def test_lyric_cues_show_a_symbol_for_a_while_and_hold_an_item_until_the_next():
+    cues = [{"at": 10, "symbol": "heart"}, {"at": 14, "holding": "umbrella"}, {"at": 20, "symbol": "door", "holding": "suitcase"}]
+    assert rules.cues_at(cues, 5) == {"symbol": None, "holding": None} and rules.cues_at(None, 5) == {"symbol": None, "holding": None}
+    assert rules.cues_at(cues, 11)["symbol"] == ("heart", 1.0)
+    assert rules.cues_at(cues, 10 + rules.SYMBOL_S + 0.1)["symbol"] is None
+    assert rules.cues_at(cues, 15)["holding"] == "umbrella" and rules.cues_at(cues, 21)["holding"] == "suitcase"
+    assert rules.cues_at(cues, 20 + rules.HOLD_S + 0.5)["holding"] is None
+
+
+def test_eyes_follow_the_other_character_look_down_when_sitting_and_hold_still_for_the_camera():
+    quiet = lambda channel, rate: 0.0
+    assert rules.eye_look(quiet, "sit", False, 0.0)[1] > rules.eye_look(quiet, "idle", False, 0.0)[1]
+    assert rules.eye_look(quiet, "look_up", False, 0.0)[1] < 0
+    assert rules.eye_look(quiet, "idle", True, 0.0) == (0.0, 0.0)
+    up = rules.eye_look(quiet, "idle", False, 0.0, target_lift=0.2)[1]  # the other is off the ground
+    assert up < rules.eye_look(quiet, "idle", False, 0.0, target_lift=0.0)[1]
+    assert rules.eye_look(quiet, "idle", False, 0.0, target_lift=0.0)[0] > 0.6
+
+
+def test_the_music_asks_for_heavier_weather_when_louder():
+    assert rules.weather_mood(0.9, 0) > rules.weather_mood(0.1, 0)
+    assert all(0.2 <= rules.weather_mood(e, o) <= 1.0 for e in (0, 0.5, 1) for o in (0, 1))
+
+
+def test_every_symbol_is_a_sensible_flat_shape():
+    assert set(symbols.SYMBOLS) == {"heart", "star", "rose", "key", "door", "moon", "bird", "clock"}
+    for name, layers in symbols.SYMBOLS.items():
+        assert layers
+        for outline, color in layers:
+            assert len(outline) >= 3 and color.startswith("#") and len(color) == 7
+            assert all(math.isfinite(x) and math.isfinite(z) and abs(x) <= 0.75 and abs(z) <= 0.75 for x, z in outline), name
+            # A positive or negative area, not a collapsed line.
+            area = sum(a[0] * b[1] - b[0] * a[1] for a, b in zip(outline, outline[1:] + outline[:1])) / 2
+            assert abs(area) > 0.003, name
+
+
+def test_the_crescent_is_hollow_on_the_side_of_the_cut():
+    xs = [x for x, _ in symbols.moon()]
+    assert min(xs) < -0.4 and max(xs) < 0.3  # open toward the right

@@ -308,6 +308,7 @@ def build_weather(origin, weather: str, camera=None, seed: int = 1):
     out = nt.nodes.new("ShaderNodeOutputMaterial")
     nt.links.new(vol.outputs["Volume"], out.inputs["Volume"])
     box_.data.materials.append(mat)
+    box_["mvm_fog"] = density  # the music thins and thickens it around this (see weather.key_amount)
     return objs + [box_]
 
 

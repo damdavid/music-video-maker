@@ -215,3 +215,38 @@ def test_a_storyboard_saved_before_moods_still_loads_and_the_scene_keeps_what_it
     board = Storyboard.model_validate(_board(scenes=[{"section_ref": 0, "setting": "road", "crowd": 3, "props": ["campfire"], "characters": [{"character_id": "hero", "holding": "balloon"}]}]))
     assert board.moods == [] and board.scenes[0].crowd == 3 and board.scenes[0].characters[0].holding == "balloon"
     assert Storyboard.model_validate(_board(moods=[{"at": 3.5, "expression": "sad"}])).moods[0].expression == "sad"
+
+
+def test_new_actions_symbols_and_costume_changes_are_part_of_the_vocabulary():
+    chars = [{"character_id": "hero", "action": a} for a in ("point", "lean", "cross_arms", "cheer")]
+    board = Storyboard.model_validate(_board(scenes=[{"section_ref": 0, "setting": "road", "characters": chars[:3]}]))
+    assert [c.action for c in board.scenes[0].characters] == ["point", "lean", "cross_arms"]
+    worn = Storyboard.model_validate(_board(scenes=[{"section_ref": 0, "setting": "road", "characters": [{"character_id": "hero", "wear": {"outfit": "suit", "hat": "none", "accessories": []}}]}]))
+    wear = worn.scenes[0].characters[0].wear
+    assert (wear.outfit, wear.hat, wear.accessories) == ("suit", "none", [])
+    assert Storyboard.model_validate(_board()).scenes[0].characters[0].wear is None
+    for bad in ({"outfit": "toga"}, {"hat": "fez"}, {"accessories": ["monocle"]}):
+        with pytest.raises(ValidationError):
+            Storyboard.model_validate(_board(scenes=[{"section_ref": 0, "setting": "road", "characters": [{"character_id": "hero", "wear": bad}]}]))
+
+
+def test_a_third_accessory_is_trimmed_instead_of_failing_the_storyboard():
+    from app.models import Wear
+
+    assert Wear(accessories=["scarf", "scarf", "glasses", "backpack"]).accessories == ["scarf", "glasses"]
+
+
+def test_cues_are_stored_by_time_and_the_empty_or_misplaced_ones_dropped():
+    from app.models import Line, Lyrics
+    from app.storyboard import LooseCue, _cues
+
+    lyrics = Lyrics(lines=[Line(start=1.0, end=2.0, text="a"), Line(start=5.5, end=7.0, text="b")])
+    cues = _cues([LooseCue(line=1, symbol="door", holding="suitcase"), LooseCue(line=0, symbol="heart"), LooseCue(line=0), LooseCue(line=9, symbol="star")], lyrics)
+    assert cues == [{"at": 1.0, "symbol": "heart", "holding": None}, {"at": 5.5, "symbol": "door", "holding": "suitcase"}]
+    assert _cues([LooseCue(line=0, symbol="heart")], None) == []
+
+
+def test_a_storyboard_saved_before_cues_still_loads():
+    board = Storyboard.model_validate(_board(cues=[{"at": 2.0, "symbol": "bird"}]))
+    assert board.cues[0].symbol == "bird" and board.cues[0].holding is None
+    assert Storyboard.model_validate(_board()).cues == []
