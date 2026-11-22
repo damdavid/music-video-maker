@@ -11,12 +11,21 @@ import bmesh
 import bpy
 from mathutils import Euler, Vector
 
-from . import body, hairgen, materials
+from . import body, hairgen, materials, wear
 from .body import ANKLE, HIP_X, HIP_Z, REST_Z, SHIN, SHOULDER_X, SHOULDER_Z, THIGH, UPPER_ARM, FORE_ARM, TORSO_LEN, NECK_LEN
 from .motion import Pose, stance_height
 
 SKIN_DEFAULT = "#d9a37e"
 SEG = 22  # vertices round each cross-section
+# Per mood: how far the inner brow ends rise (degrees; negative = drop), how far the brows lift (figure heights), how open the eyes stay, the jaw's opening.
+MOODS = {
+    "neutral": (0.0, 0.0, 1.0, 0.0),
+    "happy": (-3.0, 0.0015, 0.55, 0.28),
+    "sad": (22.0, 0.0, 0.85, 0.0),
+    "surprised": (0.0, 0.004, 1.25, 0.55),
+    "calm": (0.0, 0.001, 0.5, 0.0),
+    "determined": (-20.0, -0.002, 0.9, 0.0),
+}
 
 _sphere_mesh = None
 
@@ -96,7 +105,7 @@ def _mesh_object(name: str, bm, mats, parent):
 
 
 class Figure:
-    def __init__(self, name: str, colors: dict, hair: str, outfit: str, gender: str, height: float):
+    def __init__(self, name: str, colors: dict, hair: str, outfit: str, gender: str, height: float, hat: str | None = None, accessories=(), holding: str | None = None):
         self.name, self.h, self.gender = name, height, gender
         H = height
         self.outfit = outfit
@@ -119,6 +128,8 @@ class Figure:
         self.neck = pivot(f"{name}-neck", self.spine, (0, 0, TORSO_LEN * H))
         self.head = pivot(f"{name}-head", self.neck, (0, 0, NECK_LEN * H))
         self.hair_p = pivot(f"{name}-hairswing", self.head, (0, 0.025 * H, 0.13 * H))
+        # How far each arm swings out from the body, degrees; a guitar's neck hand reaches out to the side.
+        self.abduct = {"L": 7.0, "R": 7.0}
         self.shoulder, self.elbow, self.wrist, self.hip, self.knee, self.ankle = {}, {}, {}, {}, {}, {}
         for side, sx in (("L", 1), ("R", -1)):
             sh = pivot(f"{name}-shoulder{side}", self.spine, (sx * SHOULDER_X * g["shoulder"] * H, 0, SHOULDER_Z * H))
@@ -135,6 +146,14 @@ class Figure:
         self._body(skin, top, bottom, outfit, g)
         self._head(skin, hair_mat, dark, white, iris, lips, g, H)
         self._hair_and_clothes(hair, outfit, top, hair_mat, colors, H)
+        wear.add_outfit_details(self, outfit, colors)
+        if hat:
+            wear.add_hat(self, hat, colors)
+        wear.add_accessories(self, list(accessories or ()), colors)
+        self.held = wear.Held(self, holding, colors) if holding else None
+
+    def gender_scale(self) -> float:
+        return body.GENDER[self.gender]["shoulder"]
 
     @staticmethod
     def _lip_color(skin_hex: str, gender: str) -> str:
@@ -202,14 +221,14 @@ class Figure:
             def __call__(self, z):
                 return {groups[n]: w for n, w in self.fn(z).items() if w > 1e-4}
 
-        pants = outfit in ("tee", "hoodie", "coat")
+        pants = outfit in ("tee", "hoodie", "coat", "jacket", "suit", "overalls")
         torso = body.shaped(body.TORSO, self.gender)
         torso_w = W(lambda z: {"pelvis": body.blend(z, 0.045, 0.045), "spine": 1 - body.blend(z, 0.045, 0.045)})
         loft(bm, torso, (0, 0, z0), H, lambda i: 2 if pants and torso[i].z < 0.02 else 1, torso_w)
         neck = body.shaped(body.NECK, self.gender)
         neck_w = W(lambda z: {"head": body.smoothstep((z - 0.31) / 0.06), "spine": 1 - body.smoothstep((z - 0.31) / 0.06)})
         loft(bm, neck, (0, 0, z0), H, lambda i: 0, neck_w)
-        long_sleeve = outfit in ("hoodie", "coat")
+        long_sleeve = outfit in ("hoodie", "coat", "jacket", "suit")
         for side, sx in (("L", 1), ("R", -1)):
             arm_st = body.shaped(body.ARM, self.gender)
             arm_w = W(lambda z, s=side: self._arm_weights(z, s))
@@ -265,6 +284,7 @@ class Figure:
             blob(f"{self.name}-brow", self.head, (0.0185 * H, 0.0045 * H, brow), (sx * 0.0195 * H, -0.0585 * H, (0.1145 if self.gender == "male" else 0.1175) * H), hair_mat, rot=(0, 0, math.radians(sx * -6)))
             for sx in (-1, 1)
         ]
+        self.brow_rest = [(b.location.z, tuple(b.rotation_euler)) for b in self.brows]
         blob(f"{self.name}-bridge", self.head, (0.0068 * H, 0.009 * H, 0.016 * H), (0, -0.0585 * H, 0.085 * H), skin)
         blob(f"{self.name}-nose", self.head, (0.0088 * H, 0.0092 * H, 0.0085 * H), (0, -0.0645 * H, 0.0705 * H), skin)
         for sx in (-1, 1):
@@ -336,7 +356,7 @@ class Figure:
         r = Euler([math.radians(a) for a in euler_deg], "XYZ").to_matrix()
         pb.rotation_quaternion = (m.inverted() @ r @ m).to_quaternion()
 
-    def apply(self, p: Pose, mouth_open: float = 0.0, blink: float = 1.0) -> None:
+    def apply(self, p: Pose, mouth_open: float = 0.0, blink: float = 1.0, mood: str = "neutral", strength: float = 1.0) -> None:
         d = math.radians
         H = self.h
         dz = (stance_height(p) - REST_Z) * H
@@ -350,8 +370,8 @@ class Figure:
         pelvis.location = self.rest["pelvis"].inverted() @ Vector((0.0, 0.0, dz))
         self._rotate_bone("spine", (p.lean, 0.0, p.twist))
         self._rotate_bone("head", (p.head, p.side, 0.0))
-        abd = 7.0
         for side, arm, sign in (("L", p.arm_l, 1), ("R", p.arm_r, -1)):
+            abd = self.abduct[side]
             self.shoulder[side].rotation_euler = (d(-arm[0]), d(-sign * abd), 0.0)
             self.elbow[side].rotation_euler = (d(-arm[1]), 0.0, 0.0)
             self._rotate_bone(f"upperarm.{side}", (-arm[0], -sign * abd, 0.0))
@@ -361,12 +381,18 @@ class Figure:
             self.knee[side].rotation_euler = (d(-leg[1]), 0.0, 0.0)
             self._rotate_bone(f"thigh.{side}", (-leg[0], 0.0, 0.0))
             self._rotate_bone(f"shin.{side}", (-leg[1], 0.0, 0.0))
+        inner_up, lift, squint, jaw = (v * strength if i != 2 else 1 + (v - 1) * strength for i, v in enumerate(MOODS.get(mood, MOODS["neutral"])))
+        for sx, brow, (rest_z, rest_rot) in zip((-1, 1), self.brows, self.brow_rest):
+            brow.location.z = rest_z + lift * H
+            brow.rotation_euler = (rest_rot[0], math.radians(sx * inner_up), rest_rot[2])
         for eye in self.eyes:
-            eye.scale.z = 0.0078 * H * max(blink, 0.08)
-        jaw_drop = 0.011 * H * min(1.0, mouth_open)
+            eye.scale.z = 0.0078 * H * max(blink * squint, 0.08)
+        jaw_drop = 0.011 * H * min(1.0, max(mouth_open, jaw))
         lower_z, cavity_z = self.lip_rest
         self.lower_lip.location.z = lower_z - jaw_drop
         self.cavity.scale.z = cavity_z + jaw_drop * 0.7
+        if self.held is not None:
+            self.held.update(p)
         if self.skirt is not None:
             spread = 1 + 0.12 * min(1.0, abs(p.leg_l[0] - p.leg_r[0]) / 40)
             self.skirt.scale.x = spread
@@ -385,5 +411,10 @@ class Figure:
         self.cavity.keyframe_insert("scale", frame=frame, index=2)
         for eye in self.eyes:
             eye.keyframe_insert("scale", frame=frame, index=2)
+        for brow in self.brows:
+            brow.keyframe_insert("location", frame=frame, index=2)
+            brow.keyframe_insert("rotation_euler", frame=frame, index=1)
+        if self.held is not None:
+            self.held.key(frame)
         if self.skirt is not None:
             self.skirt.keyframe_insert("scale", frame=frame, index=0)

@@ -258,6 +258,24 @@ def build_prop(kind: str, origin, x: float, rng):
         return tree("proptree", (x, oy + 3.0, 0), rng)
     if kind == "house":
         return [box("house", (x, oy + 12, 3.0), (7, 6, 6), materials.principled("house-wall", "#b9a58c", 0.9)), box("roof", (x, oy + 12, 6.6), (7.6, 6.6, 1.2), materials.principled("house-roof", "#5b2f2a", 0.8))]
+    if kind == "campfire":
+        log = materials.principled("fire-log", "#4a3020", 0.9)
+        flame = materials.emissive("fire-flame", "#ff9a3c", 14.0)
+        parts = [cylinder("log1", (x, oy + 1.8, 0.1), 0.07, 0.8, log, 8), cylinder("log2", (x, oy + 1.8, 0.1), 0.07, 0.8, log, 8)]
+        parts[0].rotation_euler = (0.0, math.radians(90), math.radians(30))
+        parts[1].rotation_euler = (0.0, math.radians(90), math.radians(-30))
+        for k, (dx, dy, h) in enumerate(((0.0, 0.0, 0.5), (0.1, 0.05, 0.38), (-0.1, -0.04, 0.34))):
+            f = ico(f"flame{k}", (x + dx, oy + 1.8 + dy, 0.2 + h / 2), 0.1, flame, (0.9, 0.9, h / 0.2 * 0.5))
+            parts.append(f)
+        return parts + [point_light("firelight", (x, oy + 1.8, 0.6), 900, (1.0, 0.6, 0.28), 0.25)]
+    if kind == "fence":
+        wood2 = materials.principled("fence-wood", "#7a5b3a", 0.85)
+        rails = [box("rail1", (x, oy + 2.4, 0.55), (4.0, 0.06, 0.08), wood2), box("rail2", (x, oy + 2.4, 0.95), (4.0, 0.06, 0.08), wood2)]
+        return rails + [box(f"post{k}", (x - 1.9 + k * 0.95, oy + 2.4, 0.6), (0.12, 0.1, 1.2), wood2) for k in range(5)]
+    if kind == "signpost":
+        wood2 = materials.principled("sign-wood", "#7a5b3a", 0.85)
+        board = materials.principled("sign-board", "#b79563", 0.8)
+        return [cylinder("signpole", (x, oy + 2.2, 1.2), 0.05, 2.4, wood2, 10), box("sign1", (x + 0.1, oy + 2.15, 2.0), (0.9, 0.05, 0.28), board), box("sign2", (x - 0.1, oy + 2.15, 1.6), (0.9, 0.05, 0.28), board)]
     if kind == "suitcase":
         return [box("suitcase", (x, oy + 1.4, 0.3), (0.6, 0.2, 0.6), materials.principled("suitcase", "#7a3b2e", 0.55))]
     return []
@@ -324,8 +342,14 @@ class Sky:
         self.moon.data.angle = math.radians(2.0)
         self.moon.rotation_euler = (math.radians(35), math.radians(-20), math.radians(40))
 
-    def key(self, frame: int, tod: str, weather: str) -> None:
-        p = TIME_OF_DAY[tod]
+    def key(self, frame: int, tod: str, weather: str, drift: tuple[str, float] | None = None) -> None:
+        """Keys the sky for a time of day; `drift` moves it part of the way toward another (the light slowly moving on during a scene)."""
+        p = dict(TIME_OF_DAY[tod])
+        if drift and drift[1] > 0:
+            to, k = TIME_OF_DAY[drift[0]], drift[1]
+            for name in ("elev", "rot", "sun", "sky", "moon"):
+                p[name] = p[name] + (to[name] - p[name]) * k
+            p["color"] = tuple(a + (b - a) * k for a, b in zip(p["color"], to["color"]))
         elev = math.radians(p["elev"])
         rot = math.radians(p["rot"])
         self.sky.sun_elevation = elev

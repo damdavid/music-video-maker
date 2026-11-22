@@ -7,7 +7,7 @@ import { useAlive } from "./jobs";
 import { Select } from "./Select";
 import { TagsInput } from "./TagsInput";
 import { fmtRange } from "./time";
-import { CAMERA_MOTIONS, LOOKS, LYRIC_ANIMATIONS, TRANSITIONS, TYPOGRAPHY, VISUAL_PRESETS } from "./vocab";
+import { CAMERA_MOTIONS, GRADES, LOOKS, LYRIC_ANIMATIONS, TRANSITIONS, TYPOGRAPHY, VISUAL_PRESETS } from "./vocab";
 
 // The generated type is a union of fixed-length tuples; the backend enforces 2-8 colors.
 const asOverride = (colors: string[]) => colors as PaletteOverride;
@@ -82,6 +82,7 @@ export function StylePlanEditor({ projectId, plan, sections, lyricVideo, onChang
             <th>Camera</th>
             {lyricVideo && <th>Lyrics</th>}
             <th>Transition</th>
+            <th>Grade</th>
             <th />
           </tr>
         </thead>
@@ -101,6 +102,7 @@ export function StylePlanEditor({ projectId, plan, sections, lyricVideo, onChang
               <td><Select aria-label={`${name} camera`} value={s.camera_motion ?? "none"} options={CAMERA_MOTIONS} onChange={(v) => setSection(i, { camera_motion: v })} /></td>
               {lyricVideo && <td><Select aria-label={`${name} lyrics`} value={s.lyric_animation ?? "pop"} options={LYRIC_ANIMATIONS} onChange={(v) => setSection(i, { lyric_animation: v })} /></td>}
               <td><Select aria-label={`${name} transition`} value={s.transition_in ?? "crossfade"} options={TRANSITIONS} onChange={(v) => setSection(i, { transition_in: v })} /></td>
+              <td><Select aria-label={`${name} grade`} value={s.grade ?? "none"} options={GRADES} onChange={(v) => setSection(i, { grade: v })} /></td>
               <td className="actions">
                 <button
                   className="btn btn-ghost btn-compact"

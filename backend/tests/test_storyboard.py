@@ -18,7 +18,7 @@ def _board(**kw):
 
 def test_defaults_and_vocabulary_are_enforced():
     board = Storyboard.model_validate(_board())
-    assert board.illustration == "library" and board.scenes[0].time_of_day == "night" and board.scenes[0].crowd == 0
+    assert board.illustration == "library" and board.scenes[0].time_of_day == "night" and board.scenes[0].crowd is None  # None: the renderer decides
     assert board.scenes[0].characters[0].expression is None  # the renderer picks one from the action
     for bad in (
         {"scenes": [{"section_ref": 0, "setting": "moon"}]},
@@ -171,3 +171,47 @@ def test_holding_and_looking_default_to_nothing_for_scenes_saved_before_they_exi
 
     c = SceneCharacter.model_validate({"character_id": "a"})
     assert c.holding is None and c.looks_at is None
+
+
+def test_hats_accessories_and_new_clothes_are_part_of_the_vocabulary():
+    board = Storyboard.model_validate(_board(cast=[{"id": "hero", "hat": "cowboy", "outfit": "jacket", "accessories": ["scarf", "glasses"], "colors": COLORS}]))
+    hero = board.cast[0]
+    assert (hero.hat, hero.outfit, hero.accessories) == ("cowboy", "jacket", ["scarf", "glasses"])
+    for bad in ({"hat": "fez"}, {"outfit": "toga"}, {"accessories": ["scarf", "glasses", "backpack"]}, {"accessories": ["monocle"]}):
+        with pytest.raises(ValidationError):
+            Storyboard.model_validate(_board(cast=[{"id": "hero", "colors": COLORS, **bad}]))
+    assert Storyboard.model_validate(_board()).cast[0].hat is None
+
+
+def test_the_cast_repair_keeps_hats_and_trims_accessories():
+    from app.storyboard import LooseCharacter, LooseColors, _cast
+
+    colors = LooseColors(body="#d9a37e", hair="#2b1d14", top="#3a6ea5", bottom="#2e2e3a", accent="#e85d4a")
+    (hero,) = _cast([LooseCharacter(id="Hero", hat="beret", accessories=["scarf", "scarf", "glasses", "backpack"], colors=colors)])
+    assert hero["hat"] == "beret" and hero["accessories"] == ["scarf", "glasses"]
+
+
+def test_moods_are_stored_by_time_and_dropped_for_lines_that_do_not_exist():
+    from app.models import Line, Lyrics
+    from app.storyboard import LooseMood, _moods, _numbered
+
+    lyrics = Lyrics(lines=[Line(start=1.0, end=2.0, text="a"), Line(start=5.5, end=7.0, text="b"), Line(start=9.0, end=10.0, text="c")])
+    moods = _moods([LooseMood(line=2, expression="determined"), LooseMood(line=0, expression="sad"), LooseMood(line=9, expression="happy"), LooseMood(line=-1, expression="calm")], lyrics)
+    assert moods == [{"at": 1.0, "expression": "sad"}, {"at": 9.0, "expression": "determined"}]
+    assert _moods([LooseMood(line=0, expression="sad")], None) == []
+    assert '"line": 1' in _numbered(lyrics) and _numbered(None) == ""
+
+
+def test_a_scene_leaves_the_crowd_to_the_renderer_unless_claude_chose_one():
+    from app.models import SceneCharacter
+    from app.storyboard import LooseScene, _scene
+
+    assert _scene(LooseScene(section_ref=0, setting="city"), set(), set())["crowd"] is None
+    assert _scene(LooseScene(section_ref=0, setting="city", crowd=0), set(), set())["crowd"] == 0
+    assert _scene(LooseScene(section_ref=0, setting="city", crowd=40), set(), set())["crowd"] == 8
+
+
+def test_a_storyboard_saved_before_moods_still_loads_and_the_scene_keeps_what_it_held_new_items():
+    board = Storyboard.model_validate(_board(scenes=[{"section_ref": 0, "setting": "road", "crowd": 3, "props": ["campfire"], "characters": [{"character_id": "hero", "holding": "balloon"}]}]))
+    assert board.moods == [] and board.scenes[0].crowd == 3 and board.scenes[0].characters[0].holding == "balloon"
+    assert Storyboard.model_validate(_board(moods=[{"at": 3.5, "expression": "sad"}])).moods[0].expression == "sad"

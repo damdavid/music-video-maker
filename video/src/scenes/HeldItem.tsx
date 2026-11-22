@@ -114,6 +114,61 @@ export const HeldInHand = ({ kind, j, colors, ink, flat, t, swing }: HandProps) 
         </g>
       );
     }
+    case "phone": {
+      const glow = "#bfe3ff";
+      return (
+        <g transform={`translate(${f(H.x + 0.012)} ${f(H.y - 0.05)}) rotate(14)`}>
+          {!flat && <ellipse cx={0.012} cy={-0.02} rx={0.075} ry={0.1} fill={glow} opacity={0.14} />}
+          <rect x={-0.014} y={-0.062} width={0.03} height={0.124} rx={0.008} fill={dark} {...st} />
+          {!flat && <rect x={0.004} y={-0.053} width={0.009} height={0.106} rx={0.004} fill={glow} />}
+        </g>
+      );
+    }
+    case "flag": {
+      // The pole stands upright from the fist; the cloth streams away from the wind of the beat.
+      const top = { x: H.x + 0.01, y: H.y - 0.7 };
+      const wave = (k: number) => 0.018 * Math.sin(t * 5 + k * 1.3) + 0.012 * swing * 0.05;
+      const w = 0.3;
+      const h = 0.17;
+      const pts = Array.from({ length: 5 }, (_, i) => ({ x: top.x - (w * i) / 4, y: top.y + 0.01 + wave(i) * (i / 2) }));
+      const lowerEdge = pts.map((p) => ({ x: p.x, y: p.y + h * (1 - 0.06 * Math.sin(t * 4 + p.x * 20)) })).reverse();
+      return (
+        <g>
+          <path d={`M ${f(H.x)} ${f(H.y + 0.1)} L ${f(top.x)} ${f(top.y)}`} stroke={dark} strokeWidth={0.012} strokeLinecap="round" />
+          <circle cx={top.x} cy={top.y - 0.005} r={0.011} fill={shade(accent, 20)} {...st} />
+          <path d={`M ${pts.map((p) => `${f(p.x)} ${f(p.y)}`).join(" L ")} L ${lowerEdge.map((p) => `${f(p.x)} ${f(p.y)}`).join(" L ")} Z`} fill={accent} {...st} />
+          {!flat && <path d={`M ${f(pts[2].x)} ${f(pts[2].y)} L ${f(lowerEdge[2].x)} ${f(lowerEdge[2].y)}`} stroke={shade(accent, -22)} strokeWidth={0.006} />}
+        </g>
+      );
+    }
+    case "balloon": {
+      // A string from the hand to a balloon that bobs and sways above it.
+      const bob = 0.02 * Math.sin(t * 2.1);
+      const sway = 0.03 * Math.sin(t * 1.3);
+      const B = { x: H.x + 0.02 + sway, y: H.y - 0.42 + bob };
+      return (
+        <g>
+          <path d={`M ${f(H.x)} ${f(H.y)} Q ${f(H.x + sway * 0.2)} ${f((H.y + B.y) / 2)} ${f(B.x)} ${f(B.y + 0.07)}`} fill="none" stroke={dark} strokeWidth={0.0035} />
+          <ellipse cx={B.x} cy={B.y} rx={0.065} ry={0.08} fill={accent} {...st} />
+          {!flat && <ellipse cx={B.x - 0.022} cy={B.y - 0.028} rx={0.016} ry={0.026} fill="#ffffff" opacity={0.45} />}
+          <path d={`M ${f(B.x - 0.012)} ${f(B.y + 0.088)} L ${f(B.x)} ${f(B.y + 0.07)} L ${f(B.x + 0.012)} ${f(B.y + 0.088)} Z`} fill={shade(accent, -18)} {...st} />
+        </g>
+      );
+    }
+    case "cup": {
+      return (
+        <g>
+          {!flat &&
+            [0, 1].map((i) => (
+              <path key={i} d={`M ${f(H.x - 0.012 + i * 0.026)} ${f(H.y - 0.05)} q 0.012 -0.026 0 -0.05 q -0.012 -0.022 0.004 -0.045`} fill="none" stroke="#ffffff" strokeWidth={0.005} strokeLinecap="round" opacity={0.32 + 0.12 * Math.sin(t * 2 + i)} />
+            ))}
+          <path d={`M ${f(H.x + 0.03)} ${f(H.y - 0.025)} q 0.036 0.002 0.03 0.03 q -0.004 0.024 -0.03 0.024`} fill="none" stroke={ink} strokeWidth={0.014} strokeLinecap="round" opacity={flat ? 0 : 1} />
+          <path d={`M ${f(H.x + 0.03)} ${f(H.y - 0.025)} q 0.036 0.002 0.03 0.03 q -0.004 0.024 -0.03 0.024`} fill="none" stroke={accent} strokeWidth={0.007} strokeLinecap="round" />
+          <path d={`M ${f(H.x - 0.036)} ${f(H.y - 0.055)} L ${f(H.x - 0.03)} ${f(H.y + 0.045)} Q ${f(H.x)} ${f(H.y + 0.06)} ${f(H.x + 0.03)} ${f(H.y + 0.045)} L ${f(H.x + 0.036)} ${f(H.y - 0.055)} Z`} fill={accent} {...st} />
+          {!flat && <path d={`M ${f(H.x - 0.03)} ${f(H.y - 0.03)} H ${f(H.x + 0.03)}`} stroke={shade(accent, -22)} strokeWidth={0.005} />}
+        </g>
+      );
+    }
     case "book": {
       // Held up to read: seen from the side, its cover and pages are a thin slab tilted toward the face.
       return (

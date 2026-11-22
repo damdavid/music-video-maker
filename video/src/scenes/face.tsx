@@ -55,10 +55,12 @@ type Props = {
   open?: number;
   /** Seen from the front (looking at the camera): the eyes sit evenly either side of the middle. */
   frontal?: boolean;
+  /** How strongly the expression shows (1 is the drawn default): the music turns it up or down. */
+  strength?: number;
 };
 
 /** A three-quarter face: eyes shifted toward the facing side, brows, cheeks and a mouth. */
-export const Face = ({ mood, cx, cy, r, color, t, skin, open: sing = 0, frontal = false }: Props) => {
+export const Face = ({ mood, cx, cy, r, color, t, skin, open: sing = 0, frontal = false, strength = 1 }: Props) => {
   const spread = frontal ? 0.3 : 0.22;
   const eyes = [cx - spread * r, cx + spread * r];
   const ey = cy - 0.05 * r;
@@ -82,14 +84,14 @@ export const Face = ({ mood, cx, cy, r, color, t, skin, open: sing = 0, frontal 
     eyes.map((x, i) => {
       const inner = i === 0 ? 1 : -1;
       if (innerUp === null) return <path key={i} d={`M ${x - 0.11 * r} ${ey - 0.22 * r} Q ${x} ${ey - 0.29 * r} ${x + 0.11 * r} ${ey - 0.21 * r}`} {...line} strokeWidth={w * 0.8} />;
-      const yIn = ey - (innerUp ? 0.25 : 0.12) * r;
-      const yOut = ey - (innerUp ? 0.14 : 0.24) * r;
+      const yIn = ey - (innerUp ? 0.14 + 0.11 * strength : 0.24 - 0.12 * strength) * r;
+      const yOut = ey - (innerUp ? 0.25 - 0.11 * strength : 0.12 + 0.12 * strength) * r;
       return <line key={i} x1={x + inner * 0.1 * r} y1={yIn} x2={x - inner * 0.1 * r} y2={yOut} {...line} strokeWidth={w * 1.15} />;
     });
-  const cheeks = (strength: number) =>
+  const cheeks = (amount: number) =>
     skin &&
-    [eyes[0] - 0.02 * r, eyes[1] + 0.04 * r].map((x, i) => <ellipse key={i} cx={x} cy={my - 0.1 * r} rx={0.11 * r} ry={0.065 * r} fill={mix(skin, "#e0556a", 0.55)} opacity={strength} />);
-  const mouth = (curve: number, half = 0.13) => <path d={`M ${cx - half * r} ${my} Q ${cx} ${my + curve * r} ${cx + half * r} ${my}`} {...line} />;
+    [eyes[0] - 0.02 * r, eyes[1] + 0.04 * r].map((x, i) => <ellipse key={i} cx={x} cy={my - 0.1 * r} rx={0.11 * r} ry={0.065 * r} fill={mix(skin, "#e0556a", 0.55)} opacity={Math.min(1, amount * strength)} />);
+  const mouth = (curve: number, half = 0.13) => <path d={`M ${cx - half * r} ${my} Q ${cx} ${my + curve * strength * r} ${cx + half * r} ${my}`} {...line} />;
   // An open mouth: a dark D-shape with a tongue, for grins and for singing.
   const gape = (half: number, depth: number) => (
     <g>

@@ -130,6 +130,11 @@
           "title": "Lyric Fade",
           "type": "string"
         },
+        "crowds": {
+          "default": true,
+          "title": "Crowds",
+          "type": "boolean"
+        },
         "transitions": {
           "default": "music",
           "enum": [
@@ -586,6 +591,20 @@
           ],
           "title": "Transition In",
           "type": "string"
+        },
+        "grade": {
+          "default": "none",
+          "enum": [
+            "none",
+            "warm",
+            "cool",
+            "faded",
+            "noir",
+            "vivid",
+            "dream"
+          ],
+          "title": "Grade",
+          "type": "string"
         }
       },
       "required": [
@@ -866,10 +885,48 @@
             "tee",
             "coat",
             "dress",
-            "hoodie"
+            "hoodie",
+            "jacket",
+            "suit",
+            "overalls"
           ],
           "title": "Outfit",
           "type": "string"
+        },
+        "hat": {
+          "anyOf": [
+            {
+              "enum": [
+                "cowboy",
+                "beanie",
+                "cap",
+                "top_hat",
+                "beret",
+                "sun_hat"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Hat"
+        },
+        "accessories": {
+          "items": {
+            "enum": [
+              "glasses",
+              "sunglasses",
+              "scarf",
+              "headphones",
+              "backpack"
+            ],
+            "type": "string"
+          },
+          "maxItems": 2,
+          "title": "Accessories",
+          "type": "array"
         },
         "build": {
           "default": 1.0,
@@ -991,6 +1048,34 @@
       "title": "CustomObject",
       "type": "object"
     },
+    "LineMood": {
+      "description": "How the lead looks from this moment on, until the next mood: set per lyric line, keyed by time so it survives line edits.",
+      "properties": {
+        "at": {
+          "minimum": 0,
+          "title": "At",
+          "type": "number"
+        },
+        "expression": {
+          "enum": [
+            "neutral",
+            "happy",
+            "sad",
+            "surprised",
+            "calm",
+            "determined"
+          ],
+          "title": "Expression",
+          "type": "string"
+        }
+      },
+      "required": [
+        "at",
+        "expression"
+      ],
+      "title": "LineMood",
+      "type": "object"
+    },
     "Scene": {
       "properties": {
         "section_ref": {
@@ -1047,12 +1132,19 @@
           "type": "array"
         },
         "crowd": {
-          "default": 0,
-          "description": "Faceless background silhouettes",
-          "maximum": 8,
-          "minimum": 0,
-          "title": "Crowd",
-          "type": "integer"
+          "anyOf": [
+            {
+              "maximum": 8,
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Background figures",
+          "title": "Crowd"
         },
         "props": {
           "items": {
@@ -1061,7 +1153,10 @@
               "bench",
               "tree",
               "house",
-              "suitcase"
+              "suitcase",
+              "campfire",
+              "fence",
+              "signpost"
             ],
             "type": "string"
           },
@@ -1186,7 +1281,11 @@
                 "flowers",
                 "lantern",
                 "book",
-                "guitar"
+                "guitar",
+                "phone",
+                "flag",
+                "balloon",
+                "cup"
               ],
               "type": "string"
             },
@@ -1271,6 +1370,13 @@
             "$ref": "#/$defs/Scene"
           },
           "title": "Scenes",
+          "type": "array"
+        },
+        "moods": {
+          "items": {
+            "$ref": "#/$defs/LineMood"
+          },
+          "title": "Moods",
           "type": "array"
         }
       },

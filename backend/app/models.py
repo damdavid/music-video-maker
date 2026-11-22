@@ -23,14 +23,18 @@ Weather = Literal["clear", "rain", "snow", "fog"]
 Action = Literal["idle", "walk", "run", "sit", "wave", "look_up", "reach", "dance", "jump", "slump"]
 # Empty in a scene means "pick from the action" (the renderer's default).
 Expression = Literal["neutral", "happy", "sad", "surprised", "calm", "determined"]
-Prop = Literal["lamp", "bench", "tree", "house", "suitcase"]
+Prop = Literal["lamp", "bench", "tree", "house", "suitcase", "campfire", "fence", "signpost"]
 # Things a character carries; the guitar is played with both hands, the rest are held in one.
-Held = Literal["umbrella", "suitcase", "microphone", "flowers", "lantern", "book", "guitar"]
+Held = Literal["umbrella", "suitcase", "microphone", "flowers", "lantern", "book", "guitar", "phone", "flag", "balloon", "cup"]
 Placement = Literal["left", "center", "right"]
 ObjectSize = Literal["small", "medium", "large"]
 Hair = Literal["none", "short", "long", "bun", "hat", "hood"]
 Gender = Literal["male", "female"]
-Outfit = Literal["tee", "coat", "dress", "hoodie"]
+Outfit = Literal["tee", "coat", "dress", "hoodie", "jacket", "suit", "overalls"]
+Hat = Literal["cowboy", "beanie", "cap", "top_hat", "beret", "sun_hat"]
+Accessory = Literal["glasses", "sunglasses", "scarf", "headphones", "backpack"]
+# A colour treatment for a section's whole picture; "none" leaves it as drawn.
+Grade = Literal["none", "warm", "cool", "faded", "noir", "vivid", "dream"]
 HexColor = Annotated[str, StringConstraints(pattern=r"^#[0-9a-fA-F]{6}$")]
 
 VISUAL_PRESETS = get_args(VisualPreset)
@@ -63,6 +67,8 @@ class Settings(BaseModel):
     title_card: bool = True
     # How lyric lines fade in and out, and hand over to the next: hard (quick), normal, or gentle (slow, with the old line rising away).
     lyric_fade: Literal["hard", "normal", "gentle"] = "gentle"
+    # Background figures the renderer adds on its own in intense sections (scenes can still set their own number).
+    crowds: bool = True
     # Where each section change's transition comes from: chosen from how the music changes there, or from the style plan.
     transitions: Literal["music", "plan"] = "music"
     # Averages each frame over a few moments within the shutter (Remotion only); smoother motion, but renders several times slower.
@@ -153,6 +159,7 @@ class StyleSection(BaseModel):
     camera_motion: CameraMotion = "none"
     lyric_animation: LyricAnimation = "pop"
     transition_in: Transition = "crossfade"
+    grade: Grade = "none"
 
 
 class StylePlan(BaseModel):
@@ -181,6 +188,9 @@ class CharacterDraft(BaseModel):
     gender: Gender | None = None
     hair: Hair = "short"
     outfit: Outfit = "tee"
+    # Worn over the hair; None for no hat (the older hair style "hat" is a plain brimmed hat).
+    hat: Hat | None = None
+    accessories: list[Accessory] = Field(default_factory=list, max_length=2)
     build: float = Field(default=1.0, ge=0.85, le=1.15, description="Height scale")
     colors: CharacterColors
 
@@ -237,7 +247,8 @@ class SceneDraft(BaseModel):
     time_of_day: TimeOfDay = "night"
     weather: Weather = "clear"
     characters: list[SceneCharacter] = Field(default_factory=list, max_length=3)
-    crowd: int = Field(default=0, ge=0, le=8, description="Faceless background silhouettes")
+    # Background figures. None lets the renderer decide from the section's energy and the action (0 means none, on purpose).
+    crowd: int | None = Field(default=None, ge=0, le=8, description="Background figures")
     props: list[Prop] = Field(default_factory=list, max_length=4)
     objects: list[SceneObject] = Field(default_factory=list, max_length=3)
 
@@ -254,11 +265,19 @@ class Scene(SceneDraft):
         return None if v is None else sanitize_svg(v, "background").svg
 
 
+class LineMood(BaseModel):
+    """How the lead looks from this moment on, until the next mood: set per lyric line, keyed by time so it survives line edits."""
+
+    at: float = Field(ge=0)
+    expression: Expression
+
+
 class Storyboard(BaseModel):
     illustration: Illustration = "library"
     cast: list[Character] = Field(default_factory=list, max_length=6)
     objects: list[CustomObject] = Field(default_factory=list, max_length=8)
     scenes: list[Scene] = Field(default_factory=list)
+    moods: list[LineMood] = Field(default_factory=list)
 
     def effective_illustration(self, scene: "Scene") -> Illustration:
         return scene.illustration or self.illustration

@@ -34,7 +34,7 @@ def setup_render(scene, preview: bool) -> None:
     scene.eevee.taa_render_samples = int(os.environ.get("MVM_SAMPLES", 16 if preview else 48))
     scene.eevee.use_raytracing = True
     scene.eevee.shadow_pool_size = "1024"  # many lights and trees overflow the default
-    scene.render.use_motion_blur = True
+    scene.render.use_motion_blur = os.environ.get("MVM_MOTION_BLUR", "1") != "0"
     scene.render.motion_blur_shutter = 0.4
     scene.view_settings.view_transform = "AgX"
     scene.view_settings.look = "AgX - Medium High Contrast" if "AgX - Medium High Contrast" in [e.identifier for e in scene.view_settings.bl_rna.properties["look"].enum_items] else "None"

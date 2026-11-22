@@ -11,7 +11,7 @@ from app.models import Project, Settings
 from tests.client import make_client
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "blender"))
-from mvm import body, hairgen, motion, timing  # noqa: E402
+from mvm import body, hairgen, motion, rules, timing  # noqa: E402
 
 
 def test_the_lyric_fade_defaults_to_gentle_including_for_projects_saved_before_it_existed():
@@ -257,3 +257,64 @@ def test_transitions_come_from_the_music_and_motion_blur_is_off_unless_asked_for
     old = Project.model_validate({"id": "p", "settings": {"aspect": "9:16"}}).settings
     assert (old.transitions, old.motion_blur) == ("music", "off")
     assert Settings(transitions="plan", motion_blur="strong").motion_blur == "strong"
+
+
+def test_entrances_wind_up_then_overshoot():
+    ctx = motion.Ctx(t=1.0, beat=2.25, beat_len=0.5, energy=0.6, seed=3)
+    idle, wave = motion.pose_for("idle", ctx), motion.pose_for("wave", ctx)
+    along = lambda since: (motion.pose_with_entrance("wave", ctx, since).arm_r[0] - idle.arm_r[0]) / (wave.arm_r[0] - idle.arm_r[0])
+    k = [along(i / 70 * motion.ENTER_S) for i in range(71)]
+    assert min(k) < -0.03 and max(k) > 1.03
+    assert motion.pose_with_entrance("wave", ctx, 0.0) == idle
+    assert motion.pose_with_entrance("wave", ctx, motion.ENTER_S) == wave
+    assert motion.ease_anticipate(0.0) == 0.0 and motion.ease_anticipate(1.0) == 1.0
+
+
+def test_held_items_move_only_the_arms_they_hold():
+    ctx = motion.Ctx(t=1.0, beat=2.25, beat_len=0.5, energy=0.6, seed=3)
+    base = motion.pose_for("idle", ctx)
+    for kind in motion.HELD:
+        held = motion.hold_pose(base, kind, 1.0, 2.25, 0.6)
+        assert held.arm_r != base.arm_r
+        assert (held.arm_l != base.arm_l) == (kind in motion.TWO_HANDED)
+        assert held.lean == base.lean and held.leg_l == base.leg_l
+    assert motion.hold_pose(base, "phone", 1.0, 2.25, 0.6).arm_r[1] > motion.hold_pose(base, "suitcase", 1.0, 2.25, 0.6).arm_r[1]
+
+
+def test_the_crowd_rules_match_the_other_renderer():
+    assert rules.crowd_size(0, 1.0, "dance", True) == 0
+    assert rules.crowd_size(40, 0.1, "idle", False) == rules.MAX_CROWD
+    assert rules.crowd_size(None, 0.3, "dance", True) == 0
+    assert 1 < rules.crowd_size(None, 0.6, "dance", True) < rules.crowd_size(None, 1.0, "dance", True) <= rules.MAX_CROWD
+    assert rules.crowd_size(None, 1.0, "sit", True) == 0 and rules.crowd_size(None, 1.0, "dance", False) == 0
+    assert {rules.crowd_action(0.95, p, False) for p in (0, 0.2, 0.5, 0.95)} >= {"jump", "wave", "dance"}
+    assert rules.crowd_action(0.5, 0.9, True) == "walk" and rules.crowd_action(0.5, 0.9, False) == "idle"
+
+
+def test_moods_hold_until_the_next_and_then_let_go():
+    moods = [{"at": 10, "expression": "sad"}, {"at": 20, "expression": "determined"}]
+    assert rules.mood_at(moods, 5) is None and rules.mood_at([], 5) is None
+    assert rules.mood_at(moods, 15) == "sad" and rules.mood_at(list(reversed(moods)), 25) == "determined"
+    assert rules.mood_at(moods, 10 + rules.MOOD_HOLD_S + 0.5) is None
+
+
+def test_grades_blend_and_stay_in_range():
+    assert rules.blend_grades("none", "none", 0.5)["tint_amount"] == 0
+    mid = rules.blend_grades("none", "warm", 0.5)
+    assert mid["tint"] == rules.GRADES["warm"]["tint"] and abs(mid["tint_amount"] - rules.GRADES["warm"]["tint_amount"] / 2) < 1e-9
+    assert rules.blend_grades("none", "vivid", 1, 1.15)["saturate"] > rules.blend_grades("none", "vivid", 1, 0.8)["saturate"]
+    for a in rules.GRADES:
+        for b in rules.GRADES:
+            g = rules.blend_grades(a, b, 0.4, 1.15)
+            assert g["saturate"] >= 0 and g["contrast"] > 0 and g["sepia"] <= 1 and g["tint_amount"] <= 0.4
+
+
+def test_light_follows_the_song():
+    rest = rules.lighting_at("night", 0.0, 0.0, 0.6)
+    beat = rules.lighting_at("night", 1.0, 0.0, 0.6)
+    down = rules.lighting_at("night", 1.0, 1.0, 0.6)
+    assert rest["flash"] == 0 < beat["flash"] < down["flash"]
+    assert rules.lighting_at("day", 1, 1, 1)["rim"] < rules.lighting_at("night", 1, 1, 1)["rim"] <= 0.7
+    assert rules.next_time_of_day("dusk") == "night" and rules.next_time_of_day("night") == "dawn"
+    assert rules.drift_amount(0) == 0 and 0 < rules.drift_amount(1) <= rules.DRIFT
+    assert rules.beat_envelope([1.0, 2.0], 1.0) == 1.0 and rules.beat_envelope([1.0, 2.0], 1.5) < 0.2 and rules.beat_envelope([1.0], 0.5) == 0.0

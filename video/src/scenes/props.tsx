@@ -57,6 +57,37 @@ export const PropShape = ({ kind, x, gy, unit, c, t, pulse, sway }: Props) => {
           <rect x={unit * 0.04} y={-unit * 0.17} width={unit * 0.08} height={unit * 0.17} fill={c.ink} />
         </g>
       );
+    case "campfire": {
+      const flick = (k: number) => 1 + 0.12 * Math.sin(t * (9 + k * 3) + k * 2) + 0.18 * pulse;
+      return (
+        <g transform={`translate(${x} ${gy})`}>
+          {lit && <circle cx={0} cy={-unit * 0.08} r={unit * (0.34 + 0.04 * pulse)} fill={c.light} opacity={0.2 + 0.08 * pulse} />}
+          <rect x={-unit * 0.09} y={-unit * 0.025} width={unit * 0.18} height={unit * 0.03} rx={unit * 0.012} fill={c.ink} transform={`rotate(-8 0 -${unit * 0.01})`} />
+          <rect x={-unit * 0.09} y={-unit * 0.025} width={unit * 0.18} height={unit * 0.03} rx={unit * 0.012} fill={c.ink} transform={`rotate(8 0 -${unit * 0.01})`} />
+          {[[-0.035, 0.1, 0], [0.03, 0.13, 1], [0, 0.17, 2]].map(([dx, h, k], i) => (
+            <path key={i} d={`M ${(dx - 0.04) * unit} ${-unit * 0.03} Q ${(dx - 0.035) * unit} ${-unit * h * 0.7 * flick(k)} ${dx * unit} ${-unit * h * flick(k)} Q ${(dx + 0.035) * unit} ${-unit * h * 0.7 * flick(k)} ${(dx + 0.04) * unit} ${-unit * 0.03} Z`} fill={i === 2 ? mix(c.light, c.fg, 0.55) : c.light} opacity={0.95 - 0.15 * i} />
+          ))}
+        </g>
+      );
+    }
+    case "fence":
+      return (
+        <g transform={`translate(${x} ${gy})`} fill={c.ink}>
+          <rect x={-unit * 0.3} y={-unit * 0.2} width={unit * 0.6} height={unit * 0.016} />
+          <rect x={-unit * 0.3} y={-unit * 0.1} width={unit * 0.6} height={unit * 0.016} />
+          {[-0.28, -0.14, 0, 0.14, 0.28].map((dx) => (
+            <polygon key={dx} points={`${(dx - 0.014) * unit},0 ${(dx - 0.014) * unit},${-unit * 0.24} ${dx * unit},${-unit * 0.265} ${(dx + 0.014) * unit},${-unit * 0.24} ${(dx + 0.014) * unit},0`} />
+          ))}
+        </g>
+      );
+    case "signpost":
+      return (
+        <g transform={`translate(${x} ${gy})`} fill={c.ink}>
+          <rect x={-unit * 0.012} y={-unit * 0.5} width={unit * 0.024} height={unit * 0.5} />
+          <polygon points={`${-unit * 0.1},${-unit * 0.46} ${unit * 0.09},${-unit * 0.46} ${unit * 0.13},${-unit * 0.425} ${unit * 0.09},${-unit * 0.39} ${-unit * 0.1},${-unit * 0.39}`} fill={mix(c.near, c.light, 0.25)} stroke={c.ink} strokeWidth={unit * 0.006} />
+          <polygon points={`${unit * 0.1},${-unit * 0.37} ${-unit * 0.08},${-unit * 0.37} ${-unit * 0.12},${-unit * 0.335} ${-unit * 0.08},${-unit * 0.3} ${unit * 0.1},${-unit * 0.3}`} fill={mix(c.near, c.light, 0.25)} stroke={c.ink} strokeWidth={unit * 0.006} />
+        </g>
+      );
     case "suitcase":
       return (
         <g transform={`translate(${x} ${gy})`}>

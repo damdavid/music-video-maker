@@ -22,6 +22,7 @@ export type AutoCuts = boolean;
 export type Renderer = "remotion" | "blender";
 export type TitleCard = boolean;
 export type LyricFade = "hard" | "normal" | "gentle";
+export type Crowds = boolean;
 export type Transitions = "music" | "plan";
 export type MotionBlur = "off" | "light" | "strong";
 export type Id = string;
@@ -96,6 +97,7 @@ export type PaletteOverride =
 export type CameraMotion = "none" | "slowZoom" | "drift" | "shake" | "pulse" | "handheld";
 export type LyricAnimation = "karaoke" | "pop" | "typewriter" | "kinetic" | "inkStamp" | "dotDissolve" | "handwrite";
 export type TransitionIn = "crossfade" | "flash" | "zoomThrough" | "iris" | "dive" | "push" | "whip" | "wipe" | "punch";
+export type Grade = "none" | "warm" | "cool" | "faded" | "noir" | "vivid" | "dream";
 export type Sections1 = StyleSection[];
 export type EmphasisWords = string[];
 export type Rationale = string;
@@ -131,7 +133,18 @@ export type Name = string;
 export type Description = string;
 export type Gender = ("male" | "female") | null;
 export type Hair = "none" | "short" | "long" | "bun" | "hat" | "hood";
-export type Outfit = "tee" | "coat" | "dress" | "hoodie";
+export type Outfit = "tee" | "coat" | "dress" | "hoodie" | "jacket" | "suit" | "overalls";
+export type Hat = ("cowboy" | "beanie" | "cap" | "top_hat" | "beret" | "sun_hat") | null;
+/**
+ * @maxItems 2
+ */
+export type Accessories =
+  | []
+  | ["glasses" | "sunglasses" | "scarf" | "headphones" | "backpack"]
+  | [
+      "glasses" | "sunglasses" | "scarf" | "headphones" | "backpack",
+      "glasses" | "sunglasses" | "scarf" | "headphones" | "backpack"
+    ];
 /**
  * Height scale
  */
@@ -150,6 +163,8 @@ export type Name1 = string;
 export type Description1 = string;
 export type Size = "small" | "medium" | "large";
 export type Svg1 = string | null;
+export type At = number;
+export type Expression = "neutral" | "happy" | "sad" | "surprised" | "calm" | "determined";
 export type SectionRef1 = number;
 /**
  * One-line storyboard note
@@ -165,32 +180,49 @@ export type Characters =
   [] | [SceneCharacter] | [SceneCharacter, SceneCharacter] | [SceneCharacter, SceneCharacter, SceneCharacter];
 export type CharacterId = string;
 export type Action = "idle" | "walk" | "run" | "sit" | "wave" | "look_up" | "reach" | "dance" | "jump" | "slump";
-export type Expression = ("neutral" | "happy" | "sad" | "surprised" | "calm" | "determined") | null;
+export type Expression1 = ("neutral" | "happy" | "sad" | "surprised" | "calm" | "determined") | null;
 export type Placement = "left" | "center" | "right";
 export type Facing = "left" | "right";
-export type Holding = ("umbrella" | "suitcase" | "microphone" | "flowers" | "lantern" | "book" | "guitar") | null;
+export type Holding =
+  | (
+      | "umbrella"
+      | "suitcase"
+      | "microphone"
+      | "flowers"
+      | "lantern"
+      | "book"
+      | "guitar"
+      | "phone"
+      | "flag"
+      | "balloon"
+      | "cup"
+    )
+  | null;
 export type LooksAt = string | null;
 /**
- * Faceless background silhouettes
+ * Background figures
  */
-export type Crowd = number;
+export type Crowd = number | null;
 /**
  * @maxItems 4
  */
 export type Props =
   | []
-  | ["lamp" | "bench" | "tree" | "house" | "suitcase"]
-  | ["lamp" | "bench" | "tree" | "house" | "suitcase", "lamp" | "bench" | "tree" | "house" | "suitcase"]
+  | ["lamp" | "bench" | "tree" | "house" | "suitcase" | "campfire" | "fence" | "signpost"]
   | [
-      "lamp" | "bench" | "tree" | "house" | "suitcase",
-      "lamp" | "bench" | "tree" | "house" | "suitcase",
-      "lamp" | "bench" | "tree" | "house" | "suitcase"
+      "lamp" | "bench" | "tree" | "house" | "suitcase" | "campfire" | "fence" | "signpost",
+      "lamp" | "bench" | "tree" | "house" | "suitcase" | "campfire" | "fence" | "signpost"
     ]
   | [
-      "lamp" | "bench" | "tree" | "house" | "suitcase",
-      "lamp" | "bench" | "tree" | "house" | "suitcase",
-      "lamp" | "bench" | "tree" | "house" | "suitcase",
-      "lamp" | "bench" | "tree" | "house" | "suitcase"
+      "lamp" | "bench" | "tree" | "house" | "suitcase" | "campfire" | "fence" | "signpost",
+      "lamp" | "bench" | "tree" | "house" | "suitcase" | "campfire" | "fence" | "signpost",
+      "lamp" | "bench" | "tree" | "house" | "suitcase" | "campfire" | "fence" | "signpost"
+    ]
+  | [
+      "lamp" | "bench" | "tree" | "house" | "suitcase" | "campfire" | "fence" | "signpost",
+      "lamp" | "bench" | "tree" | "house" | "suitcase" | "campfire" | "fence" | "signpost",
+      "lamp" | "bench" | "tree" | "house" | "suitcase" | "campfire" | "fence" | "signpost",
+      "lamp" | "bench" | "tree" | "house" | "suitcase" | "campfire" | "fence" | "signpost"
     ];
 /**
  * @maxItems 3
@@ -226,6 +258,7 @@ export type Objects1 =
   | [CustomObject, CustomObject, CustomObject, CustomObject, CustomObject, CustomObject, CustomObject]
   | [CustomObject, CustomObject, CustomObject, CustomObject, CustomObject, CustomObject, CustomObject, CustomObject];
 export type Scenes = Scene[];
+export type Moods = LineMood[];
 export type Start3 = number;
 export type End3 = number;
 export type Label1 = string;
@@ -264,6 +297,7 @@ export interface Settings {
   renderer?: Renderer;
   title_card?: TitleCard;
   lyric_fade?: LyricFade;
+  crowds?: Crowds;
   transitions?: Transitions;
   motion_blur?: MotionBlur;
 }
@@ -363,6 +397,7 @@ export interface StyleSection {
   camera_motion?: CameraMotion;
   lyric_animation?: LyricAnimation;
   transition_in?: TransitionIn;
+  grade?: Grade;
 }
 export interface PresetParams {
   [k: string]: number | string;
@@ -427,6 +462,8 @@ export interface Character {
   gender?: Gender;
   hair?: Hair;
   outfit?: Outfit;
+  hat?: Hat;
+  accessories?: Accessories;
   build?: Build;
   colors: CharacterColors;
   svg?: Svg;
@@ -454,6 +491,16 @@ export interface CustomObject {
   svg?: Svg1;
 }
 /**
+ * How the lead looks from this moment on, until the next mood: set per lyric line, keyed by time so it survives line edits.
+ *
+ * This interface was referenced by `Schema`'s JSON-Schema
+ * via the `definition` "LineMood".
+ */
+export interface LineMood {
+  at: At;
+  expression: Expression;
+}
+/**
  * This interface was referenced by `Schema`'s JSON-Schema
  * via the `definition` "Scene".
  */
@@ -477,7 +524,7 @@ export interface Scene {
 export interface SceneCharacter {
   character_id: CharacterId;
   action?: Action;
-  expression?: Expression;
+  expression?: Expression1;
   placement?: Placement;
   facing?: Facing;
   holding?: Holding;
@@ -500,6 +547,7 @@ export interface Storyboard {
   cast?: Cast;
   objects?: Objects1;
   scenes?: Scenes;
+  moods?: Moods;
 }
 /**
  * One section of the edited song timeline. Sections must tile the song: the first starts at 0, each starts where the last ends.

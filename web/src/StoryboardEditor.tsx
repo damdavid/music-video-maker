@@ -1,11 +1,11 @@
 import { Fragment, useState, type Dispatch, type SetStateAction } from "react";
-import type { Character, CustomObject, ProcessStatus, Scene, SceneCharacter, SceneObject, Section, Storyboard } from "../../shared/types";
+import type { Character, CustomObject, Lyrics, ProcessStatus, Scene, SceneCharacter, SceneObject, Section, Storyboard } from "../../shared/types";
 import { errorMessage, generateStoryboard, getStoryboard, illustrationStatus, regenerateScene, saveStoryboard, startIllustration } from "./api";
 import { pollJob, useAlive } from "./jobs";
 import { Select } from "./Select";
 import { fmtRange } from "./time";
 import { defaultExpression } from "video/src/scenes/face";
-import { ACTIONS, EXPRESSIONS, GENDERS, HAIRS, HELD, ILLUSTRATIONS, OBJECT_SIZES, OUTFITS, PLACEMENTS, PROP_KINDS, SETTINGS, TIMES, WEATHERS, legacyGender } from "./vocab";
+import { ACCESSORIES, ACTIONS, EXPRESSIONS, GENDERS, HAIRS, HATS, HELD, ILLUSTRATIONS, OBJECT_SIZES, OUTFITS, PLACEMENTS, PROP_KINDS, SETTINGS, TIMES, WEATHERS, legacyGender } from "./vocab";
 
 type PropKind = (typeof PROP_KINDS)[number];
 
@@ -24,6 +24,8 @@ type Props = {
   board: Storyboard | null;
   sections: Section[];
   sectionDescriptions: string[];
+  /** The aligned lyrics, for setting the lead's expression line by line. */
+  lyrics?: Lyrics | null;
   // Takes updaters so async results merge into the latest board instead of the one rendered when they started.
   onChange: Dispatch<SetStateAction<Storyboard | null>>;
 };
@@ -59,7 +61,7 @@ const mergeArt = (cur: EBoard, fresh: EBoard): EBoard => ({
 
 const svgSrc = (svg: string) => `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
 
-export function StoryboardEditor({ projectId, board, sections, sectionDescriptions, onChange }: Props) {
+export function StoryboardEditor({ projectId, board, sections, sectionDescriptions, lyrics, onChange }: Props) {
   const [busy, setBusy] = useState<"all" | number | null>(null);
   const [drawing, setDrawing] = useState(false);
   const [art, setArt] = useState<ProcessStatus | null>(null);
@@ -217,6 +219,24 @@ export function StoryboardEditor({ projectId, board, sections, sectionDescriptio
               <label>Hair <Select value={c.hair ?? "short"} options={HAIRS} onChange={(v) => setCharacter(idx, { hair: v })} /></label>
               <label>Outfit <Select value={c.outfit ?? "tee"} options={OUTFITS} onChange={(v) => setCharacter(idx, { outfit: v })} /></label>
               <label>
+                Hat{" "}
+                <select aria-label={`${c.id} hat`} value={c.hat ?? ""} onChange={(e) => setCharacter(idx, { hat: (e.target.value || null) as Character["hat"] })}>
+                  <option value="">none</option>
+                  {HATS.map((h) => (
+                    <option key={h} value={h}>{h.replace("_", " ")}</option>
+                  ))}
+                </select>
+              </label>
+              {ACCESSORIES.map((a) => {
+                const worn: (typeof ACCESSORIES)[number][] = c.accessories ?? [];
+                const on = worn.includes(a);
+                return (
+                  <label key={a} title={on || worn.length < 2 ? "" : "At most two accessories"}>
+                    <input type="checkbox" checked={on} disabled={!on && worn.length >= 2} onChange={(e) => setCharacter(idx, { accessories: (e.target.checked ? [...worn, a] : worn.filter((x) => x !== a)) as Character["accessories"] })} /> {a}
+                  </label>
+                );
+              })}
+              <label>
                 Build{" "}
                 <input type="range" min={0.85} max={1.15} step={0.01} value={c.build ?? 1} onChange={(e) => setCharacter(idx, { build: Number(e.target.value) })} />
               </label>
@@ -261,7 +281,7 @@ export function StoryboardEditor({ projectId, board, sections, sectionDescriptio
                           <td><Select aria-label={`${section.label} setting`} value={s.setting} options={SETTINGS} onChange={(v) => setScene(i, { setting: v })} /></td>
                           <td><Select aria-label={`${section.label} time of day`} value={s.time_of_day ?? "night"} options={TIMES} onChange={(v) => setScene(i, { time_of_day: v })} /></td>
                           <td><Select aria-label={`${section.label} weather`} value={s.weather ?? "clear"} options={WEATHERS} onChange={(v) => setScene(i, { weather: v })} /></td>
-                          <td><input type="number" aria-label={`${section.label} crowd`} min={0} max={8} style={{ width: 60 }} value={s.crowd ?? 0} onChange={(e) => setScene(i, { crowd: Math.min(8, Math.max(0, Number(e.target.value) || 0)) })} /></td>
+                          <td><input type="number" aria-label={`${section.label} crowd`} title="Leave empty to let the renderer add a crowd in energetic sections; 0 for none" placeholder="auto" min={0} max={8} style={{ width: 60 }} value={s.crowd ?? ""} onChange={(e) => setScene(i, { crowd: e.target.value === "" ? null : Math.min(8, Math.max(0, Number(e.target.value) || 0)) })} /></td>
                         </>
                       ) : (
                         <td colSpan={4}>
@@ -391,6 +411,34 @@ export function StoryboardEditor({ projectId, board, sections, sectionDescriptio
               })}
             </tbody>
           </table>
+          {lyrics && lyrics.lines.length > 0 && b.cast?.length ? (
+            <details>
+              <summary>Expressions by lyric line ({(b.moods ?? []).length} set)</summary>
+              <p className="hint">The lead's face takes this expression from the start of the line, until the next one is set (at most 8 seconds). Leave a line as "scene" to use the scene's own expression.</p>
+              <table className="plan-table">
+                <tbody>
+                  {lyrics.lines.map((line, k) => {
+                    const at = Math.round(line.start * 100) / 100;
+                    const mood = (b.moods ?? []).find((m) => Math.abs(m.at - at) < 0.02)?.expression ?? "";
+                    return (
+                      <tr key={k}>
+                        <td className="time">{fmtRange(line.start, line.start)}</td>
+                        <td>{line.text}</td>
+                        <td>
+                          <select aria-label={`Expression for line ${k + 1}`} value={mood} onChange={(e) => update((cur) => ({ ...cur, moods: [...(cur.moods ?? []).filter((m) => Math.abs(m.at - at) >= 0.02), ...(e.target.value ? [{ at, expression: e.target.value as NonNullable<Scene["characters"]>[number]["expression"] & string }] : [])].sort((x, y) => x.at - y.at) }))}>
+                            <option value="">scene</option>
+                            {EXPRESSIONS.map((x) => (
+                              <option key={x} value={x}>{x}</option>
+                            ))}
+                          </select>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </details>
+          ) : null}
           <div className="row spaced">
             <button
               className="btn btn-secondary"
