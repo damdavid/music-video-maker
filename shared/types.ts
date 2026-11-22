@@ -22,6 +22,8 @@ export type AutoCuts = boolean;
 export type Renderer = "remotion" | "blender";
 export type TitleCard = boolean;
 export type LyricFade = "hard" | "normal" | "gentle";
+export type Transitions = "music" | "plan";
+export type MotionBlur = "off" | "light" | "strong";
 export type Id = string;
 export type LyricsText = string;
 export type SectionDescriptions = string[];
@@ -166,6 +168,8 @@ export type Action = "idle" | "walk" | "run" | "sit" | "wave" | "look_up" | "rea
 export type Expression = ("neutral" | "happy" | "sad" | "surprised" | "calm" | "determined") | null;
 export type Placement = "left" | "center" | "right";
 export type Facing = "left" | "right";
+export type Holding = ("umbrella" | "suitcase" | "microphone" | "flowers" | "lantern" | "book" | "guitar") | null;
+export type LooksAt = string | null;
 /**
  * Faceless background silhouettes
  */
@@ -260,6 +264,8 @@ export interface Settings {
   renderer?: Renderer;
   title_card?: TitleCard;
   lyric_fade?: LyricFade;
+  transitions?: Transitions;
+  motion_blur?: MotionBlur;
 }
 /**
  * This interface was referenced by `Schema`'s JSON-Schema
@@ -474,6 +480,8 @@ export interface SceneCharacter {
   expression?: Expression;
   placement?: Placement;
   facing?: Facing;
+  holding?: Holding;
+  looks_at?: LooksAt;
 }
 /**
  * This interface was referenced by `Schema`'s JSON-Schema

@@ -3,7 +3,7 @@ import { OBJECT_SCALE, objectPlacements, PLACEMENT_X, propPlacements } from "./l
 import type { ResolvedScene } from "./normalize";
 
 const scene = (over: Partial<ResolvedScene>): ResolvedScene => ({ setting: "shore", time_of_day: "dusk", weather: "clear", characters: [], crowd: 0, props: [], objects: [], illustration: "library", background_svg: null, ...over });
-const person = (action: "sit" | "walk", placement: "left" | "center" | "right" = "center") => ({ character_id: "hero", action, expression: "neutral" as const, placement, facing: "right" as const });
+const person = (action: "sit" | "walk", placement: "left" | "center" | "right" = "center") => ({ character_id: "hero", action, expression: "neutral" as const, placement, facing: "right" as const, holding: null, lookAt: null });
 
 describe("propPlacements", () => {
   it("puts a listed bench under the sitter instead of in a far slot (the bug seen in a live storyboard)", () => {

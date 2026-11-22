@@ -73,6 +73,21 @@ export function DetailsForm({ meta, settings, onMeta, onSettings }: Props) {
             <option value="gentle">Gentle</option>
           </select>
         </label>
+        <label title="Where section changes get their transition: chosen from how the music changes there, or the style plan's own choice per section.">
+          Transitions{" "}
+          <select value={settings.transitions ?? "music"} onChange={(e) => onSettings({ ...settings, transitions: e.target.value as Settings["transitions"] })}>
+            <option value="music">From the music</option>
+            <option value="plan">From the style plan</option>
+          </select>
+        </label>
+        <label title="Smoother motion, by averaging each frame over a few moments (Remotion only). Renders and the preview take several times longer.">
+          Motion blur{" "}
+          <select value={settings.motion_blur ?? "off"} onChange={(e) => onSettings({ ...settings, motion_blur: e.target.value as Settings["motion_blur"] })}>
+            <option value="off">Off</option>
+            <option value="light">Light (3 samples)</option>
+            <option value="strong">Strong (5 samples)</option>
+          </select>
+        </label>
         <label title="The song title and artist at the start: held through the intro until the first lyric appears (up to 8 seconds).">
           <input type="checkbox" checked={settings.title_card ?? true} onChange={(e) => onSettings({ ...settings, title_card: e.target.checked })} /> Show title and artist at the start
         </label>

@@ -24,6 +24,8 @@ Action = Literal["idle", "walk", "run", "sit", "wave", "look_up", "reach", "danc
 # Empty in a scene means "pick from the action" (the renderer's default).
 Expression = Literal["neutral", "happy", "sad", "surprised", "calm", "determined"]
 Prop = Literal["lamp", "bench", "tree", "house", "suitcase"]
+# Things a character carries; the guitar is played with both hands, the rest are held in one.
+Held = Literal["umbrella", "suitcase", "microphone", "flowers", "lantern", "book", "guitar"]
 Placement = Literal["left", "center", "right"]
 ObjectSize = Literal["small", "medium", "large"]
 Hair = Literal["none", "short", "long", "bun", "hat", "hood"]
@@ -61,6 +63,10 @@ class Settings(BaseModel):
     title_card: bool = True
     # How lyric lines fade in and out, and hand over to the next: hard (quick), normal, or gentle (slow, with the old line rising away).
     lyric_fade: Literal["hard", "normal", "gentle"] = "gentle"
+    # Where each section change's transition comes from: chosen from how the music changes there, or from the style plan.
+    transitions: Literal["music", "plan"] = "music"
+    # Averages each frame over a few moments within the shutter (Remotion only); smoother motion, but renders several times slower.
+    motion_blur: Literal["off", "light", "strong"] = "off"
 
 
 class Project(BaseModel):
@@ -209,6 +215,9 @@ class SceneCharacter(BaseModel):
     expression: Expression | None = None
     placement: Placement = "center"
     facing: Literal["left", "right"] = "right"
+    holding: Held | None = None
+    # Who this character looks at: another character's id in the scene (and turns to face), or "camera".
+    looks_at: str | None = None
 
 
 class Character(CharacterDraft):

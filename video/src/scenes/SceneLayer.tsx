@@ -1,12 +1,14 @@
 import { useMemo } from "react";
 import type { AnalysisData, Lyrics, Weather } from "../../../shared/types";
 import { depthTransform, type CameraState } from "../Camera";
+import { mix } from "../color";
 import { smoothed } from "../features";
 import { wobble } from "../motion";
 import { mulberry32 } from "../rng";
 import { beatPeriod } from "../timeline";
 import { beatPhase, beatPulse } from "../timing";
 import { ENTER_STAGGER, groundSpeed, poseWithEntrance, poseFor, type ActionCtx } from "./actions";
+import { holdPose } from "./held";
 import { Background, bleedOf } from "./backgrounds";
 import { MAX_ZOOM, type Framing } from "./direction";
 import { featureColor } from "./face";
@@ -14,11 +16,13 @@ import { mouthOpen } from "./lip";
 import { Figure } from "./Figure";
 import { FreeformBackground, FreeformFigure } from "./freeform";
 import { ObjectArt } from "./objects";
-import { objectPlacements, PLACEMENT_X, propPlacements } from "./layout";
+import { facings, objectPlacements, PLACEMENT_X, propPlacements } from "./layout";
 import type { ResolvedCharacter, ResolvedObject, ResolvedScene } from "./normalize";
 import { PropShape } from "./props";
 import { parseSafeSvgCached } from "./safeSvg";
-import { Ambient, sceneColors, Sky, WeatherOverlay } from "./sky";
+import { Ambient, celestialPos, Sky, WeatherOverlay } from "./sky";
+import { driftColors, lightingAt } from "./lighting";
+import { LensFlare, LightPulse } from "./LightFx";
 
 type Props = {
   uid: string;
@@ -40,6 +44,8 @@ type Props = {
   framing?: Framing;
   /** When this scene appears; its cast eases into their actions from then. */
   enterAt?: number;
+  /** 0..1 through the section, for the light's drift. */
+  sectionProgress?: number;
 };
 
 const WIND: Record<Weather, number> = { clear: 0.15, fog: 0.05, rain: 0.6, snow: 0.4 };
@@ -52,8 +58,9 @@ const wrapX = (x: number, w: number, margin: number) => {
   return ((((x + margin) % span) + span) % span) - margin;
 };
 
-export const SceneLayer = ({ uid, scene, cast, objects, t, width: w, height: h, analysis, palette, seed, showSky, cam, lyrics, framing, enterAt }: Props) => {
-  const c = sceneColors(palette, scene.time_of_day);
+export const SceneLayer = ({ uid, scene, cast, objects, t, width: w, height: h, analysis, palette, seed, showSky, cam, lyrics, framing, enterAt, sectionProgress = 0 }: Props) => {
+  // The light slowly moves on toward the next time of day over the section.
+  const c = driftColors(palette, scene.time_of_day, sectionProgress);
   const portrait = h > w;
   // A free-form backdrop is drawn with its ground line at 77% of the height in every aspect ratio (it is cropped, not squeezed).
   const backdrop = scene.illustration === "freeform" && scene.background_svg ? parseSafeSvgCached(scene.background_svg) : null;
@@ -66,16 +73,21 @@ export const SceneLayer = ({ uid, scene, cast, objects, t, width: w, height: h, 
   const beat = beatPhase(analysis.beats, t, analysis.bpm);
   const pulse = beatPulse(analysis.beats, t);
   const wind = Math.min(1, WIND[scene.weather] + 0.25 * energy);
+  // The music's own light: a lift on each beat (more on a downbeat), a flare when something hits hard, and a rim on the cast.
+  const light = lightingAt(scene.time_of_day, pulse, beatPulse(analysis.downbeats, t, 0.35), smoothed(analysis, "onset_strength", t), energy);
+  const sun = celestialPos(scene.time_of_day, w, hz);
   const ctx = (ft: number, variant: number): ActionCtx => ({ t: ft, beat, beatLen, energy, seed, variant });
 
-  const members = scene.characters.flatMap((sc) => {
+  // Someone who looks at another character turns to face them.
+  const faces = facings(scene);
+  const members = scene.characters.flatMap((sc, k) => {
     const ch = cast.find((x) => x.id === sc.character_id);
-    return ch ? [{ sc, ch }] : [];
+    return ch ? [{ sc, ch, facing: faces[k] }] : [];
   });
   const lead = members[0];
   // The world scrolls past a walking lead at exactly their stride, so planted feet don't slide on the ground.
   const leadSize = unit * (lead?.ch.build ?? 1);
-  const speed = lead ? groundSpeed(lead.sc.action) * leadSize * (lead.sc.facing === "left" ? -1 : 1) : 0;
+  const speed = lead ? groundSpeed(lead.sc.action) * leadSize * (lead.facing === "left" ? -1 : 1) : 0;
   const travel = speed * t;
 
   const focus = framing ? { x: framing.aim.x * w, y: gy - framing.aim.h * leadSize } : { x: lead ? PLACEMENT_X[lead.sc.placement] * w : w / 2, y: gy - unit * 0.45 };
@@ -167,20 +179,24 @@ export const SceneLayer = ({ uid, scene, cast, objects, t, width: w, height: h, 
           return art ? <ObjectArt key={`${o.id}-${i}`} art={art} uid={`${uid}-o${i}`} x={wrapX(o.x * w - travel, w, unit * o.scale)} y={gy} size={unit * o.scale} /> : null;
         })}
 
-        {members.map(({ sc, ch }, i) => {
+        {members.map(({ sc, ch, facing }, i) => {
           const ft = t + i * 0.43;
-          const pose = enterAt === undefined ? poseFor(sc.action, ctx(ft, i)) : poseWithEntrance(sc.action, ctx(ft, i), t - enterAt - i * ENTER_STAGGER);
+          const acting = enterAt === undefined ? poseFor(sc.action, ctx(ft, i)) : poseWithEntrance(sc.action, ctx(ft, i), t - enterAt - i * ENTER_STAGGER);
+          // What they hold takes over the arms it needs; the other arm keeps doing what the action does.
+          const pose = sc.holding ? holdPose(acting, sc.holding, { t: ft, beat, energy }) : acting;
           const art = scene.illustration === "freeform" && ch.svg ? parseSafeSvgCached(ch.svg) : null;
           const x = PLACEMENT_X[sc.placement] * w;
           // A character without usable art is drawn with the library rig instead of disappearing.
           return art ? (
-            <FreeformFigure key={`${ch.id}-${i}`} art={art} uid={`${uid}-c${i}`} pose={pose} action={sc.action} t={ft} beat={beat} x={x} y={gy} size={unit * ch.build} facing={sc.facing} mood={sc.expression} faceColor={featureColor(ch.colors.body)} shadow={c.ink} />
+            <FreeformFigure key={`${ch.id}-${i}`} art={art} uid={`${uid}-c${i}`} pose={pose} action={sc.action} t={ft} beat={beat} x={x} y={gy} size={unit * ch.build} facing={facing} mood={sc.expression} faceColor={featureColor(ch.colors.body)} shadow={c.ink} />
           ) : (
-            <Figure key={`${ch.id}-${i}`} pose={pose} colors={ch.colors} hair={ch.hair} outfit={ch.outfit} gender={ch.gender} x={x} y={gy} size={unit * ch.build} facing={sc.facing} face={{ mood: sc.expression, t: ft, open: i === 0 ? mouthOpen(lyrics, t) : 0 }} shadow={c.ink} />
+            <Figure key={`${ch.id}-${i}`} pose={pose} colors={ch.colors} hair={ch.hair} outfit={ch.outfit} gender={ch.gender} rim={light.rim > 0.03 ? { color: mix(c.light, "#ffffff", 0.35), strength: light.rim, id: `${uid}-rim${i}` } : undefined} held={sc.holding ?? undefined} gaze={sc.lookAt === "camera" ? "camera" : undefined} t={ft} x={x} y={gy} size={unit * ch.build} facing={facing} face={{ mood: sc.expression, t: ft, open: i === 0 ? mouthOpen(lyrics, t) : 0 }} shadow={c.ink} />
           );
         })}
       </g>
 
+      <LightPulse w={w} h={h} color={c.light} amount={light.flash} />
+      <LensFlare uid={uid} w={w} h={h} x={sun.x} y={sun.y} amount={light.flare} color={mix(c.celestial, "#ffffff", 0.5)} t={t} time={scene.time_of_day} />
       <WeatherOverlay uid={uid} weather={scene.weather} w={w} h={h} t={t} c={c} seed={seed} />
     </svg>
   );

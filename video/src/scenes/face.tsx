@@ -53,11 +53,14 @@ type Props = {
   skin?: string;
   /** Mouth opening 0..1 while singing; overrides the mood's mouth. */
   open?: number;
+  /** Seen from the front (looking at the camera): the eyes sit evenly either side of the middle. */
+  frontal?: boolean;
 };
 
 /** A three-quarter face: eyes shifted toward the facing side, brows, cheeks and a mouth. */
-export const Face = ({ mood, cx, cy, r, color, t, skin, open: sing = 0 }: Props) => {
-  const eyes = [cx - 0.22 * r, cx + 0.22 * r];
+export const Face = ({ mood, cx, cy, r, color, t, skin, open: sing = 0, frontal = false }: Props) => {
+  const spread = frontal ? 0.3 : 0.22;
+  const eyes = [cx - spread * r, cx + spread * r];
   const ey = cy - 0.05 * r;
   const my = cy + 0.38 * r;
   const w = 0.085 * r;
@@ -68,7 +71,7 @@ export const Face = ({ mood, cx, cy, r, color, t, skin, open: sing = 0 }: Props)
   const dots = (size: number) =>
     eyes.map((x, i) => (
       <g key={i}>
-        <ellipse cx={x} cy={ey} rx={size * r * (i === 0 ? 0.85 : 1)} ry={size * r * 1.35 * lid} fill={color} />
+        <ellipse cx={x} cy={ey} rx={size * r * (i === 0 && !frontal ? 0.85 : 1)} ry={size * r * 1.35 * lid} fill={color} />
         {lid > 0.5 && <circle cx={x + 0.025 * r} cy={ey - 0.035 * r} r={0.028 * r} fill="#ffffff" opacity={0.85} />}
       </g>
     ));

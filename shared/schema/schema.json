@@ -129,6 +129,25 @@
           ],
           "title": "Lyric Fade",
           "type": "string"
+        },
+        "transitions": {
+          "default": "music",
+          "enum": [
+            "music",
+            "plan"
+          ],
+          "title": "Transitions",
+          "type": "string"
+        },
+        "motion_blur": {
+          "default": "off",
+          "enum": [
+            "off",
+            "light",
+            "strong"
+          ],
+          "title": "Motion Blur",
+          "type": "string"
         }
       },
       "title": "Settings",
@@ -1156,6 +1175,39 @@
           ],
           "title": "Facing",
           "type": "string"
+        },
+        "holding": {
+          "anyOf": [
+            {
+              "enum": [
+                "umbrella",
+                "suitcase",
+                "microphone",
+                "flowers",
+                "lantern",
+                "book",
+                "guitar"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Holding"
+        },
+        "looks_at": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Looks At"
         }
       },
       "required": [

@@ -1,8 +1,11 @@
+import type { ReactNode } from "react";
 import type { CharacterColors } from "../../../shared/types";
-import { hexToHsl, hslToHex } from "../color";
 import { Face, featureColor, type Mood } from "./face";
-import type { Gender, Hair, Outfit } from "./normalize";
+import type { Gender, Hair, HeldKind, Outfit } from "./normalize";
+import { GuitarOnBody, HeldInHand } from "./HeldItem";
+import { RimLightFilter } from "./LightFx";
 import { layout, SEG, type Pose, type Pt } from "./rig";
+import { shade } from "./shade";
 
 type Props = {
   pose: Pose;
@@ -11,6 +14,14 @@ type Props = {
   outfit: Outfit;
   /** Shapes the torso: broader shoulders and narrower hips for male, the reverse for female. Omitted for silhouettes. */
   gender?: Gender;
+  /** Something carried; the arms are already posed to hold it (see held.ts). */
+  held?: HeldKind;
+  /** Looking at the camera shows a face seen from the front instead of in profile. */
+  gaze?: "camera";
+  /** Seconds, for the way held items swing. */
+  t?: number;
+  /** Light from behind that edges the figure, and a unique id for its filter. */
+  rim?: { color: string; strength: number; id: string };
   /** Ground contact point and scale (pixels per figure-height). */
   x: number;
   y: number;
@@ -30,11 +41,6 @@ const OW = 0.0065;
 // Limb radii at each end, in figure-heights.
 const R = { shoulder: 0.03, elbow: 0.025, wrist: 0.02, thigh: 0.042, knee: 0.032, ankle: 0.023, neck: 0.021 };
 
-const shade = (hex: string, dl: number) => {
-  const { h, s, l } = hexToHsl(hex);
-  // Relative, so dark colors stay readable instead of going black.
-  return hslToHex({ h, s, l: Math.max(0, Math.min(100, dl < 0 ? l * (1 + dl / 70) : l + dl)) });
-};
 
 const lerp = (a: Pt, b: Pt, k: number): Pt => ({ x: a.x + (b.x - a.x) * k, y: a.y + (b.y - a.y) * k });
 const f = (n: number) => n.toFixed(4);
@@ -134,7 +140,7 @@ const Shoe = ({ knee, ankle, lift, color, ink, flat }: { knee: Pt; ankle: Pt; li
 };
 
 /** A flat figure, drawn with outlines and a band of shade on each form; emotion comes from pose and a simple face. */
-export const Figure = ({ pose, colors, hair, outfit, gender, x, y, size, facing, mono, opacity = 1, face, shadow }: Props) => {
+export const Figure = ({ pose, colors, hair, outfit, gender, held, gaze, t = 0, rim, x, y, size, facing, mono, opacity = 1, face, shadow }: Props) => {
   const j = layout(pose);
   const c = mono ? { body: mono, hair: mono, top: mono, bottom: mono, accent: mono } : colors;
   const flat = !!mono;
@@ -146,7 +152,7 @@ export const Figure = ({ pose, colors, hair, outfit, gender, x, y, size, facing,
   const flip = facing === "left" ? -1 : 1;
   const edge = { stroke: flat ? "none" : ink, strokeWidth: 2 * OW, paintOrder: "stroke", strokeLinejoin: "round" } as const;
 
-  const arm = (elbow: Pt, hand: Pt) => {
+  const arm = (elbow: Pt, hand: Pt, inHand: ReactNode = null) => {
     const skin = c.body;
     const sleeve = c.top;
     const cuff = shade(sleeve, -16);
@@ -160,6 +166,7 @@ export const Figure = ({ pose, colors, hair, outfit, gender, x, y, size, facing,
         <Limb parts={parts} ink={ink} flat={flat} />
         {!longSleeves && <path d={tube(j.shoulder, R.shoulder + 0.006, cap, R.shoulder * 0.93 + 0.006)} fill={sleeve} {...edge} />}
         {longSleeves && !flat && <path d={tube(lerp(elbow, hand, 0.8), R.wrist + 0.004, hand, R.wrist + 0.003)} fill={cuff} {...edge} />}
+        {inHand}
         <Hand elbow={elbow} hand={hand} fill={skin} ink={ink} flat={flat} />
       </g>
     );
@@ -214,7 +221,12 @@ export const Figure = ({ pose, colors, hair, outfit, gender, x, y, size, facing,
   return (
     <g transform={`translate(${x} ${y}) scale(${flip * size} ${size})`} opacity={opacity}>
       {shadow && <ContactShadow x={j.hip.x} lift={-pose.y} color={shadow} />}
-      <g transform={stretch === 1 ? undefined : `scale(${(1 / Math.sqrt(stretch)).toFixed(4)} ${stretch.toFixed(4)})`}>
+      {rim && !mono && (
+        <defs>
+          <RimLightFilter id={rim.id} color={rim.color} strength={rim.strength} />
+        </defs>
+      )}
+      <g transform={stretch === 1 ? undefined : `scale(${(1 / Math.sqrt(stretch)).toFixed(4)} ${stretch.toFixed(4)})`} filter={rim && !mono && rim.strength > 0.03 ? `url(#${rim.id})` : undefined}>
         {/* far side */}
         {arm(j.elbowL, j.handL)}
         {leg(j.kneeL, j.ankleL)}
@@ -234,6 +246,8 @@ export const Figure = ({ pose, colors, hair, outfit, gender, x, y, size, facing,
         )}
         {!flat && outfit === "coat" && <path d={`M ${f(j.shoulder.x + 0.012)} ${f(j.shoulder.y + 0.012)} L ${f(j.hip.x + 0.012)} ${f(j.hip.y + 0.2)}`} fill="none" stroke={shade(c.top, -18)} strokeWidth={0.006} strokeLinecap="round" />}
         {!flat && (outfit === "tee" || dress) && <path d={`M ${f(j.shoulder.x - 0.018)} ${f(j.shoulder.y + 0.004)} Q ${f(j.shoulder.x + 0.02)} ${f(j.shoulder.y + 0.04)} ${f(j.shoulder.x + 0.052)} ${f(j.shoulder.y + 0.004)}`} fill="none" stroke={shade(c.top, -16)} strokeWidth={0.006} strokeLinecap="round" />}
+
+        {held === "guitar" && !mono && <GuitarOnBody j={j} colors={colors} ink={ink} flat={flat} skin={c.body} />}
 
         {/* head */}
         <g transform={`translate(${j.head.x} ${j.head.y}) rotate(${j.headAngle}) scale(${r})`}>
@@ -262,7 +276,8 @@ export const Figure = ({ pose, colors, hair, outfit, gender, x, y, size, facing,
           {face && !mono && (
             <Face
               mood={face.mood}
-              cx={hair === "hood" ? 0.42 : 0.4}
+              cx={gaze === "camera" ? 0.06 : hair === "hood" ? 0.42 : 0.4}
+              frontal={gaze === "camera"}
               cy={hair === "hood" ? 0.12 : 0.05}
               r={hair === "hood" ? 0.9 : 1}
               color={featureColor(colors.body)}
@@ -279,7 +294,7 @@ export const Figure = ({ pose, colors, hair, outfit, gender, x, y, size, facing,
             </g>
           )}
         </g>
-        {arm(j.elbowR, j.handR)}
+        {arm(j.elbowR, j.handR, held && held !== "guitar" && !mono ? <HeldInHand kind={held} j={j} colors={colors} ink={ink} flat={flat} t={t} swing={(pose.armR[0] - 6) * 1.4} /> : null)}
       </g>
     </g>
   );

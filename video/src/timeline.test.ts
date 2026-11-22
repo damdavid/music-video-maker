@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { AnalysisData } from "../../shared/types";
-import { beatPeriod, buildTimeline, HIT, snapCut } from "./timeline";
+import { beatPeriod, buildTimeline, chooseTransition, HIT, snapCut } from "./timeline";
 
 const FPS = 30;
 
@@ -86,5 +86,36 @@ describe("timeline", () => {
   it("alternates the direction of travel", () => {
     const dirs = buildTimeline(song(), () => "push").boundaries.slice(1).map((b) => b.dir);
     expect(dirs).toEqual([1, -1]);
+  });
+});
+
+
+describe("chooseTransition", () => {
+  const f = (before: number, after: number, over: Partial<{ build: number; hit: number }> = {}) => ({ before, after, build: 0, hit: 0.2, ...over });
+
+  it("picks a transition to match what the music does at the cut", () => {
+    expect(chooseTransition(f(0.3, 0.7, { hit: 0.9 }), null, 1)).toBe("punch");
+    expect(chooseTransition(f(0.3, 0.7, { hit: 0.9, build: 0.8 }), null, 1)).toBe("flash");
+    expect(["whip", "zoomThrough"]).toContain(chooseTransition(f(0.4, 0.55), null, 1));
+    expect(["dive", "iris"]).toContain(chooseTransition(f(0.8, 0.4), null, 1));
+    expect(chooseTransition(f(0.2, 0.25), null, 1)).toBe("crossfade"); // quiet
+    expect(chooseTransition(f(0.6, 0.5), null, 1)).toBe("crossfade"); // easing off
+    expect(["push", "wipe"]).toContain(chooseTransition(f(0.5, 0.52), null, 1));
+  });
+
+  it("varies within a group and never repeats the one before", () => {
+    expect(chooseTransition(f(0.4, 0.55), null, 1)).not.toBe(chooseTransition(f(0.4, 0.55), null, 2));
+    for (const [b, a] of [[0.3, 0.7], [0.4, 0.55], [0.8, 0.4], [0.5, 0.52]] as const) {
+      const first = chooseTransition(f(b, a, { hit: 0.9 }), null, 1);
+      expect(chooseTransition(f(b, a, { hit: 0.9 }), first, 1)).not.toBe(first);
+    }
+  });
+
+  it("is used for the whole timeline when asked, and the plan's choice is used otherwise", () => {
+    // Quiet for the first section and loud from 20 s on, with a hard hit at the change.
+    const loud = (t: number) => (t < 20 ? 0.2 : 0.8);
+    const a = song({ sections: [{ start: 0, end: 20, label: "a" }, { start: 20, end: 40, label: "b" }], onset_strength: Array.from({ length: 40 * FPS }, (_, i) => (Math.abs(i / FPS - 20) < 0.1 ? 1 : 0.1)) }, loud);
+    expect(buildTimeline(a, () => "iris", false).boundaries[1].kind).toBe("iris");
+    expect(buildTimeline(a, () => "iris", true).boundaries[1].kind).toBe("punch");
   });
 });

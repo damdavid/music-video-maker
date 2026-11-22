@@ -12,9 +12,8 @@ export const easeInOutSine = (x: number) => -(Math.cos(Math.PI * clamp(x)) - 1) 
 
 export const easeInQuad = (x: number) => clamp(x) * clamp(x);
 
-/** Overshoots 1 slightly on the way in, then settles. */
-export const easeOutBack = (x: number) => {
-  const c1 = 1.70158;
+/** Overshoots 1 slightly on the way in, then settles; `c1` sets how far (1.70158 is about 10%). */
+export const easeOutBack = (x: number, c1 = 1.70158) => {
   const c3 = c1 + 1;
   const p = clamp(x);
   if (p === 0 || p === 1) return p; // the formula leaves ~1e-13 at the ends
@@ -25,4 +24,15 @@ export const easeOutBack = (x: number) => {
 export const easeInOutQuint = (x: number) => {
   const p = clamp(x);
   return p < 0.5 ? 16 * p ** 5 : 1 - Math.pow(-2 * p + 2, 5) / 2;
+};
+
+/**
+ * A move with a wind-up and a follow-through: it first backs away from the target by `dip` (anticipation), then
+ * snaps past it and settles (overshoot, `c1` as in easeOutBack). 0 at 0 and 1 at 1.
+ */
+export const easeAnticipate = (x: number, dip = 0.12, c1 = 1.70158) => {
+  const p = clamp(x);
+  const wind = 0.22;
+  if (p < wind) return -dip * easeInOutSine(p / wind);
+  return -dip + (1 + dip) * easeOutBack((p - wind) / (1 - wind), c1);
 };
