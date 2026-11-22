@@ -1,10 +1,11 @@
 import { defaultExpression, type Mood } from "./face";
-import type { Action, Character, CharacterColors, CustomObject, Scene, Setting, TimeOfDay, Weather } from "../../../shared/types";
+import type { Action, Character, CharacterColors, CustomObject, Scene, SceneCharacter, Setting, TimeOfDay, Weather } from "../../../shared/types";
 
 // The generated types mark defaulted fields optional; resolve them once here so drawing code never checks.
 export type Hair = NonNullable<Character["hair"]>;
 export type Outfit = NonNullable<Character["outfit"]>;
 export type Gender = NonNullable<Character["gender"]>;
+export type HeldKind = NonNullable<SceneCharacter["holding"]>;
 export type PropKind = NonNullable<Scene["props"]>[number];
 export type Placement = "left" | "center" | "right";
 
@@ -14,7 +15,7 @@ export type Illustration = "library" | "freeform";
 export type ResolvedObject = { id: string; size: ObjectSize; svg: string | null };
 export type ResolvedSceneObject = { object_id: string; placement: Placement };
 export type ResolvedCharacter = { id: string; gender: Gender; hair: Hair; outfit: Outfit; build: number; colors: CharacterColors; svg: string | null };
-export type ResolvedSceneCharacter = { character_id: string; action: Action; expression: Mood; placement: Placement; facing: "left" | "right" };
+export type ResolvedSceneCharacter = { character_id: string; action: Action; expression: Mood; placement: Placement; facing: "left" | "right"; holding: HeldKind | null; lookAt: string | null };
 export type ResolvedScene = {
   setting: Setting;
   time_of_day: TimeOfDay;
@@ -49,7 +50,7 @@ export const resolveScene = (s: Scene, boardDefault: Illustration = "library"): 
   weather: s.weather ?? "clear",
   characters: (s.characters ?? []).map((c) => {
     const action = c.action ?? "idle";
-    return { character_id: c.character_id, action, expression: c.expression ?? defaultExpression(action), placement: c.placement ?? "center", facing: c.facing ?? "right" };
+    return { character_id: c.character_id, action, expression: c.expression ?? defaultExpression(action), placement: c.placement ?? "center", facing: c.facing ?? "right", holding: c.holding ?? null, lookAt: c.looks_at ?? null };
   }),
   crowd: s.crowd ?? 0,
   props: s.props ?? [],

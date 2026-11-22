@@ -35,3 +35,17 @@ export function objectPlacements(scene: ResolvedScene, objects: ResolvedObject[]
     return o?.svg ? [{ id: o.id, svg: o.svg, x: PLACEMENT_X[ref.placement], scale: OBJECT_SCALE[o.size] }] : [];
   });
 }
+
+
+/**
+ * Which way each character in the scene faces. Someone who looks at another character turns to face them (so two people
+ * who look at each other face each other); everyone else keeps the facing the storyboard gave them.
+ */
+export function facings(scene: ResolvedScene): ("left" | "right")[] {
+  const x = new Map(scene.characters.map((c) => [c.character_id, PLACEMENT_X[c.placement]]));
+  return scene.characters.map((c) => {
+    const target = c.lookAt && c.lookAt !== "camera" ? x.get(c.lookAt) : undefined;
+    const mine = PLACEMENT_X[c.placement];
+    return target === undefined || target === mine ? c.facing : target < mine ? "left" : "right";
+  });
+}

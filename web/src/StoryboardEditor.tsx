@@ -5,7 +5,7 @@ import { pollJob, useAlive } from "./jobs";
 import { Select } from "./Select";
 import { fmtRange } from "./time";
 import { defaultExpression } from "video/src/scenes/face";
-import { ACTIONS, EXPRESSIONS, GENDERS, HAIRS, ILLUSTRATIONS, OBJECT_SIZES, OUTFITS, PLACEMENTS, PROP_KINDS, SETTINGS, TIMES, WEATHERS, legacyGender } from "./vocab";
+import { ACTIONS, EXPRESSIONS, GENDERS, HAIRS, HELD, ILLUSTRATIONS, OBJECT_SIZES, OUTFITS, PLACEMENTS, PROP_KINDS, SETTINGS, TIMES, WEATHERS, legacyGender } from "./vocab";
 
 type PropKind = (typeof PROP_KINDS)[number];
 
@@ -345,6 +345,20 @@ export function StoryboardEditor({ projectId, board, sections, sectionDescriptio
                               />
                               <Select aria-label="Placement" value={sc.placement ?? "center"} options={PLACEMENTS} onChange={(v) => setScene(i, { characters: (s.characters ?? []).map((x, j) => (j === ci ? { ...x, placement: v } : x)) })} />
                               <Select aria-label="Facing" value={sc.facing ?? "right"} options={["left", "right"] as const} onChange={(v) => setScene(i, { characters: (s.characters ?? []).map((x, j) => (j === ci ? { ...x, facing: v } : x)) })} />
+                              <Select
+                                aria-label="Holding"
+                                value={sc.holding ?? "nothing"}
+                                options={["nothing", ...HELD] as const}
+                                label={(v) => (v === "nothing" ? "holding nothing" : `holding ${v}`)}
+                                onChange={(v) => setScene(i, { characters: (s.characters ?? []).map((x, j) => (j === ci ? { ...x, holding: v === "nothing" ? null : v } : x)) })}
+                              />
+                              <Select
+                                aria-label="Looks at"
+                                value={sc.looks_at ?? "nobody"}
+                                options={["nobody", "camera", ...(s.characters ?? []).filter((_, j) => j !== ci).map((x) => x.character_id)]}
+                                label={(v) => (v === "nobody" ? "looks at nobody" : v === "camera" ? "looks at the camera" : `looks at ${characterLabel(v)}`)}
+                                onChange={(v) => setScene(i, { characters: (s.characters ?? []).map((x, j) => (j === ci ? { ...x, looks_at: v === "nobody" ? null : v } : x)) })}
+                              />
                               <button className="btn btn-ghost btn-compact" onClick={() => setScene(i, { characters: (s.characters ?? []).filter((_, j) => j !== ci) })}>Remove</button>
                             </div>
                           ))}

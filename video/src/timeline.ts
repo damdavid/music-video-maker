@@ -91,7 +91,38 @@ const meanRms = (a: AnalysisData, from: number, to: number) => {
   return i1 > i0 ? s / (i1 - i0) : 0;
 };
 
-export function buildTimeline(a: AnalysisData, kindOf: (section: number) => Transition): Timeline {
+/** What the music does around a section change, as the inputs to choosing its transition. */
+export type CutFeatures = { before: number; after: number; build: number; hit: number };
+
+/** The transition that goes with each, so one is never used twice running. */
+const ALTERNATE: Record<Transition, Transition> = { punch: "flash", flash: "punch", whip: "zoomThrough", zoomThrough: "whip", dive: "iris", iris: "dive", push: "wipe", wipe: "push", crossfade: "crossfade" };
+
+/**
+ * A transition to suit how the music changes at a cut: a drop onto a hard hit gets a punch (or a flash after a build-up),
+ * lifting energy a whip or a zoom, energy falling away a dive or an iris, quiet or easing passages a crossfade, and a
+ * steady stretch a push or a wipe. `index` varies the choice within each group, and it never repeats the last one.
+ */
+export function chooseTransition({ before, after, build, hit }: CutFeatures, previous: Transition | null, index: number): Transition {
+  const delta = after - before;
+  let kind: Transition;
+  if (delta > 0.2 && hit > 0.6) kind = build > 0.4 ? "flash" : "punch";
+  else if (delta > 0.1) kind = index % 2 ? "whip" : "zoomThrough";
+  else if (delta < -0.18) kind = index % 2 ? "dive" : "iris";
+  else if (delta < -0.07 || Math.max(before, after) < 0.3) kind = "crossfade";
+  else kind = index % 2 ? "push" : "wipe";
+  return kind === previous ? ALTERNATE[kind] : kind;
+}
+
+/** The hardest onset within a moment of t (0..1). */
+const hitAt = (a: AnalysisData, t: number, around = 0.15) => {
+  const fps = a.fps ?? 30;
+  const series = a.onset_strength ?? [];
+  let peak = 0;
+  for (let i = Math.max(0, Math.floor((t - around) * fps)); i <= Math.min(series.length - 1, Math.ceil((t + around) * fps)); i++) peak = Math.max(peak, series[i]);
+  return peak;
+};
+
+export function buildTimeline(a: AnalysisData, kindOf: (section: number) => Transition, fromMusic = false): Timeline {
   const sections = a.sections;
   const beat = beatPeriod(a);
   const bar = beat * 4;
@@ -103,17 +134,19 @@ export function buildTimeline(a: AnalysisData, kindOf: (section: number) => Tran
     cuts.push(a.sections_edited ? s.start : snapCut(a, s.start, Math.max(cuts[i - 1], sections[i - 1].start) + 0.1, next - 0.1));
   });
 
+  let previous: Transition | null = null;
   const boundaries: Boundary[] = cuts.map((cut, i) => {
     if (i === 0) return { start: 0, end: 0, cut: 0, kind: "crossfade", dir: 1, strength: 0, build: 0, buildFrom: 0 };
-    const kind = kindOf(i);
-    const prevGap = cut - cuts[i - 1];
-    const nextGap = (cuts[i + 1] ?? a.duration) - cut;
-    const length = Math.min(clamp(BEATS[kind] * beat, MIN_S, MAX_S), MAX_GAP_SHARE * prevGap, MAX_GAP_SHARE * nextGap);
-    const start = cut - HIT[kind] * length;
     const before = meanRms(a, cut - bar, cut);
     const after = meanRms(a, cut, cut + bar);
     const rise = before - meanRms(a, cut - 2 * bar, cut - bar);
     const build = clamp((rise - 0.04) * 6);
+    const kind = fromMusic ? chooseTransition({ before, after, build, hit: hitAt(a, cut) }, previous, i) : kindOf(i);
+    previous = kind;
+    const prevGap = cut - cuts[i - 1];
+    const nextGap = (cuts[i + 1] ?? a.duration) - cut;
+    const length = Math.min(clamp(BEATS[kind] * beat, MIN_S, MAX_S), MAX_GAP_SHARE * prevGap, MAX_GAP_SHARE * nextGap);
+    const start = cut - HIT[kind] * length;
     return {
       start,
       end: start + length,

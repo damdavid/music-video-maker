@@ -145,3 +145,29 @@ def test_api_rejects_unsafe_art_and_stores_the_cleaned_version(api):
     assert "alert" not in stored and "<script" not in stored  # what is on disk is the cleaned version
     bad = client.put(f"/projects/{pid}/storyboard", json=_board(cast=[{"id": "hero", "colors": COLORS, "svg": "<html/>"}]))
     assert bad.status_code == 422 and "root element" in str(bad.json())
+
+
+def test_a_scene_keeps_what_a_character_holds_and_a_gaze_that_lands_on_someone():
+    from app.models import SceneCharacter
+    from app.storyboard import LooseScene, _scene
+
+    def scene(*chars):
+        return _scene(LooseScene(section_ref=0, setting="road", characters=list(chars)), {"a", "b"}, set())["characters"]
+
+    out = scene(
+        SceneCharacter(character_id="a", holding="guitar", looks_at="b"),
+        SceneCharacter(character_id="b", holding="umbrella", looks_at="camera"),
+    )
+    assert [(c["holding"], c["looks_at"]) for c in out] == [("guitar", "b"), ("umbrella", "camera")]
+
+    # A gaze at nobody in the scene, at oneself, or a muddled id is dropped; "Hero" still finds "hero".
+    out = scene(SceneCharacter(character_id="a", looks_at="ghost"), SceneCharacter(character_id="b", looks_at="b"))
+    assert [c["looks_at"] for c in out] == [None, None]
+    assert scene(SceneCharacter(character_id="a", looks_at="B"), SceneCharacter(character_id="b"))[0]["looks_at"] == "b"
+
+
+def test_holding_and_looking_default_to_nothing_for_scenes_saved_before_they_existed():
+    from app.models import SceneCharacter
+
+    c = SceneCharacter.model_validate({"character_id": "a"})
+    assert c.holding is None and c.looks_at is None

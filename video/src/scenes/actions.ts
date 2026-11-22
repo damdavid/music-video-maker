@@ -1,5 +1,5 @@
 import type { Action } from "../../../shared/types";
-import { easeOutBack } from "../easing";
+import { easeAnticipate } from "../easing";
 import { impulse, smooth, wobble } from "../motion";
 import { mulberry32 } from "../rng";
 import { SEG, type Pose } from "./rig";
@@ -209,7 +209,7 @@ function dance(c: ActionCtx): Pose {
   const moves = c.seed + 7919 * c.variant;
   const now = pose(moveFor(moves, bar)(c.beat, amp));
   // A new move for every bar, eased in from the last one so the change reads as a step, not a jump cut.
-  return into >= 1 ? now : lerpPose(pose(moveFor(moves, bar - 1)(c.beat, amp)), now, smooth(into));
+  return into >= 1 ? now : lerpPose(pose(moveFor(moves, bar - 1)(c.beat, amp)), now, easeAnticipate(into, 0.08, 1.2));
 }
 
 const JUMP_BEATS = 2;
@@ -301,11 +301,11 @@ export const ENTER_S = 0.7;
 export const ENTER_STAGGER = 0.12;
 
 /**
- * The pose `since` seconds after a figure appears: it eases from standing into its action and overshoots a touch,
+ * The pose `since` seconds after a figure appears: it winds up, eases from standing into its action and overshoots,
  * so a scene opens with the cast coming to life instead of already mid-motion.
  */
 export function poseWithEntrance(action: Action, ctx: ActionCtx, since: number): Pose {
   const target = poseFor(action, ctx);
   if (since >= ENTER_S || action === "idle") return target;
-  return lerpPose(poseFor("idle", ctx), target, easeOutBack(since / ENTER_S));
+  return lerpPose(poseFor("idle", ctx), target, easeAnticipate(since / ENTER_S));
 }

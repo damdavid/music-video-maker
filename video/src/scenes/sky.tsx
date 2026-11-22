@@ -43,6 +43,12 @@ export function sceneColors(palette: string[], time: TimeOfDay): SceneColors {
 /** Horizontal position of the sun/moon as a fraction of the width; shared so reflections line up with it. */
 export const celestialX = (time: TimeOfDay) => (time === "night" ? 0.78 : time === "dusk" || time === "dawn" ? 0.3 : 0.72);
 
+/** Where the sun or moon is drawn, in frame pixels. */
+export const celestialPos = (time: TimeOfDay, w: number, hz: number): { x: number; y: number } => ({
+  x: w * celestialX(time),
+  y: time === "night" ? hz * 0.28 : time === "dusk" || time === "dawn" ? hz * 0.92 : hz * 0.25,
+});
+
 type SkyProps = { uid: string; w: number; h: number; hz: number; t: number; c: SceneColors; seed: number; /** Drawn this far past the frame edges. */ bleed: number };
 
 export const Sky = ({ uid, w, h, hz, t, c, seed, bleed }: SkyProps) => {
@@ -56,8 +62,7 @@ export const Sky = ({ uid, w, h, hz, t, c, seed, bleed }: SkyProps) => {
   }, [seed, w, hz]);
   const night = c.time === "night";
   const low = c.time === "dusk" || c.time === "dawn";
-  const cx = w * celestialX(c.time);
-  const cy = night ? hz * 0.28 : low ? hz * 0.92 : hz * 0.25;
+  const { x: cx, y: cy } = celestialPos(c.time, w, hz);
   const cr = Math.min(w, h) * (night ? 0.045 : 0.06);
 
   return (

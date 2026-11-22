@@ -249,3 +249,11 @@ class TestWeather:
     def test_rain_and_snow_are_defined_with_sane_physics(self):
         weather = pytest.importorskip("mvm.weather", reason="needs bpy")  # imports bpy at module level
         assert weather.KIND["rain"]["speed"] > weather.KIND["snow"]["speed"] > 0
+
+
+def test_transitions_come_from_the_music_and_motion_blur_is_off_unless_asked_for():
+    assert Project(id="p").settings.transitions == "music"
+    assert Project(id="p").settings.motion_blur == "off"
+    old = Project.model_validate({"id": "p", "settings": {"aspect": "9:16"}}).settings
+    assert (old.transitions, old.motion_blur) == ("music", "off")
+    assert Settings(transitions="plan", motion_blur="strong").motion_blur == "strong"

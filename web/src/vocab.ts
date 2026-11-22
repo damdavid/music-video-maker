@@ -1,4 +1,4 @@
-import type { Action, BackgroundPreset, CameraMotion, CustomObject, Expression, Hair, Look, LyricAnimation, Outfit, Placement, Setting, StyleEffort, TimeOfDay, TransitionIn, TypographyStyle, VisualMode, Weather } from "../../shared/types";
+import type { Action, BackgroundPreset, SceneCharacter, CameraMotion, CustomObject, Expression, Hair, Look, LyricAnimation, Outfit, Placement, Setting, StyleEffort, TimeOfDay, TransitionIn, TypographyStyle, VisualMode, Weather } from "../../shared/types";
 
 // Must match the Literals in backend/app/models.py; `satisfies` flags values the types don't allow.
 export const VISUAL_PRESETS = ["gradientFlow", "particleField", "spectrumRings", "geometricGrid", "tunnel", "waveformRibbon", "ripples", "halftoneBloom", "orbits"] as const satisfies readonly BackgroundPreset[];
@@ -19,6 +19,8 @@ export const PLACEMENTS = ["left", "center", "right"] as const satisfies readonl
 export const HAIRS = ["none", "short", "long", "bun", "hat", "hood"] as const satisfies readonly Hair[];
 export const OUTFITS = ["tee", "coat", "dress", "hoodie"] as const satisfies readonly Outfit[];
 export const GENDERS = ["male", "female"] as const;
+/** What a character can carry; must match `Held` in backend/app/models.py. */
+export const HELD = ["umbrella", "suitcase", "microphone", "flowers", "lantern", "book", "guitar"] as const satisfies readonly NonNullable<SceneCharacter["holding"]>[];
 
 /** For characters made before gender was a choice: a guess from hair and outfit, shown in the editor so it can be changed. */
 export const legacyGender = (hair: Hair | undefined, outfit: Outfit | undefined): (typeof GENDERS)[number] =>

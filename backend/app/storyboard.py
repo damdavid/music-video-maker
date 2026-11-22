@@ -39,6 +39,8 @@ Rules:
 - Expressions (neutral, happy, sad, surprised, calm, determined) are simple dot-eye faces. Set one when the moment's feeling differs from what the action suggests (a sad walk, a calm sit after a storm); leave it out to let the action pick.
 - Use "crowd" (0-8 faceless background silhouettes) for loneliness-in-a-crowd, parties, streets; use 0 for solitude.
 - Props are set dressing (lamp, bench, tree, house, suitcase). Use few, and only when they add to the story.
+- A character can hold something ("holding": umbrella, suitcase, microphone, flowers, lantern, book, or guitar, which is played with both hands). Give an item only when the moment calls for it: a microphone or guitar for a singer, an umbrella in rain, a suitcase for leaving, flowers or a lantern for tenderness or hope, a book for reflection. Most scenes need none.
+- With more than one character, "looks_at" says who a character looks at: another character's id (they turn to face each other) or "camera" for an address to the viewer. Use it where the two are connected in that moment; leave it out otherwise.
 - A section's "user_description" is the creator's direction for that scene; follow it.
 - Custom objects (listed under "Custom objects", if any) are the creator's own props. Place them in scenes where they fit, by object_id, using only the given ids; never invent ids.
 - Each scene's description is one short line a non-technical reader can follow.
@@ -105,6 +107,11 @@ def _cast(cast: list[LooseCharacter]) -> list[dict]:
 def _scene(s: LooseScene, cast_ids: set[str], object_ids: set[str]) -> dict:
     """References are matched the way ids were repaired, so "Hero" in a scene still finds the cast's "hero"."""
     characters = [{**c.model_dump(), "character_id": _ident(c.character_id)} for c in s.characters]
+    here = {c["character_id"] for c in characters}
+    for c in characters:
+        # A gaze must land on someone else who is in the scene, or the camera.
+        target = c["looks_at"] and (c["looks_at"] if c["looks_at"] == "camera" else _ident(c["looks_at"]))
+        c["looks_at"] = target if target == "camera" or (target in here and target != c["character_id"]) else None
     objects = [{**o.model_dump(), "object_id": _ident(o.object_id)} for o in s.objects]
     return {
         **s.model_dump(include={"section_ref", "description", "setting", "time_of_day", "weather"}),
