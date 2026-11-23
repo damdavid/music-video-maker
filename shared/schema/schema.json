@@ -1265,6 +1265,26 @@
           "title": "Objects",
           "type": "array"
         },
+        "include": {
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 6,
+          "title": "Include",
+          "type": "array"
+        },
+        "direction_used": {
+          "default": "",
+          "maxLength": 2000,
+          "title": "Direction Used",
+          "type": "string"
+        },
+        "art_direction": {
+          "default": "",
+          "maxLength": 2000,
+          "title": "Art Direction",
+          "type": "string"
+        },
         "illustration": {
           "anyOf": [
             {
@@ -1671,6 +1691,26 @@
         "section_descriptions"
       ],
       "title": "SectionsApplied",
+      "type": "object"
+    },
+    "SceneRedo": {
+      "description": "A redone scene, and any objects Claude defined for the creator's direction (their art is drawn with Draw art).",
+      "properties": {
+        "scene": {
+          "$ref": "#/$defs/Scene"
+        },
+        "new_objects": {
+          "items": {
+            "$ref": "#/$defs/CustomObject"
+          },
+          "title": "New Objects",
+          "type": "array"
+        }
+      },
+      "required": [
+        "scene"
+      ],
+      "title": "SceneRedo",
       "type": "object"
     }
   }

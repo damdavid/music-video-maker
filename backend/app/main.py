@@ -19,7 +19,7 @@ from starlette.types import ASGIApp, Receive, Scope, Send
 
 from app import illustrate, jobs, lrc, pipeline, projects_store, render
 from app import lyrics_repair, sections as section_edits
-from app.models import AnalysisData, Lyrics, Meta, ProcessStatus, Project, ProjectSummary, RenderStatus, Scene, SectionEdit, SectionsApplied, Settings, Storyboard, StylePlan, StyleSection
+from app.models import AnalysisData, Lyrics, Meta, ProcessStatus, Project, ProjectSummary, RenderStatus, Scene, SceneRedo, SectionEdit, SectionsApplied, Settings, Storyboard, StylePlan, StyleSection
 from app.projects_store import write_atomic
 from app.storyboard import generate_storyboard, regenerate_scene
 from app.style_plan import StyleError, generate_plan, regenerate_section
@@ -509,7 +509,7 @@ def create_storyboard(project_id: str, client: anthropic.Anthropic = Depends(cla
 
 
 @app.post("/projects/{project_id}/storyboard/scenes/{index}/regenerate")
-def regenerate_storyboard_scene(project_id: str, index: int, client: anthropic.Anthropic = Depends(claude_client)) -> Scene:
+def regenerate_storyboard_scene(project_id: str, index: int, client: anthropic.Anthropic = Depends(claude_client)) -> SceneRedo:
     project = _load(project_id)
     analysis = _analysis_or_409(project_id)
     board = _optional_storyboard(project_id)
@@ -518,13 +518,15 @@ def regenerate_storyboard_scene(project_id: str, index: int, client: anthropic.A
     if not 0 <= index < len(analysis.sections):
         raise HTTPException(404, "no such section")
     with claude_errors("scene regeneration"):
-        scene = regenerate_scene(project, analysis, _optional_lyrics(project_id), _optional_plan(project_id), board, index, client)
+        redo = regenerate_scene(project, analysis, _optional_lyrics(project_id), _optional_plan(project_id), board, index, client)
     with illustrate.board_lock:
         board = _optional_storyboard(project_id) or board  # pick up edits (or new art) made while Claude was thinking
-        board.scenes = [s for s in board.scenes if s.section_ref != index] + [scene]
+        board.scenes = [s for s in board.scenes if s.section_ref != index] + [redo.scene]
         board.scenes.sort(key=lambda s: s.section_ref)
+        have = {o.id for o in board.objects}
+        board.objects = board.objects + [o for o in redo.new_objects if o.id not in have]
         _write(project_id, "storyboard.json", board)
-    return scene
+    return redo
 
 
 @app.post("/projects/{project_id}/render", status_code=202)

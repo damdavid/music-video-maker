@@ -49,7 +49,7 @@ but you may deliberately hold back or contrast when the meaning calls for it.
 - Keep one coherent palette (3-5 colors, dark to light) that suits the mood; use palette_shift (-1..1) for per-section warmth/coolness.
 - font_family must be a Google Fonts family name.
 - Emphasis words are lyric words that deserve a kinetic accent; pick few, and only words that appear in the lyrics.
-- A section's "user_description" is the creator's direction for what that part should look and feel like; follow it.
+- The creator's directions are given first in the request, ahead of everything else: they are the main brief for what each part should look and feel like. Follow them before your own ideas, and let them decide the preset, palette shift, camera and grade of the sections they describe.
 - Give a short rationale (2-4 sentences) a non-technical reader can follow."""
 
 
@@ -129,6 +129,20 @@ def _section_summaries(analysis: AnalysisData, lyrics: Lyrics | None, lyrics_tex
     if not lyrics and lyrics_text.strip():
         out.append({"lyrics_unaligned": lyrics_text[: LYRIC_EXCERPT_CHARS * 8]})
     return out
+
+
+def directions_block(project: Project, analysis: AnalysisData, only: int | None = None) -> str:
+    """The creator's written directions for sections, as the first thing in a request (or just section `only`), or "" when there are none."""
+    notes = project.section_descriptions
+    rows = []
+    for i, s in enumerate(analysis.sections):
+        text = notes[i].strip() if i < len(notes) else ""
+        if text and (only is None or i == only):
+            rows.append(f'- Section {i} ("{s.label}", {int(s.start) // 60}:{int(s.start) % 60:02d} to {int(s.end) // 60}:{int(s.end) % 60:02d}): {text}')
+    if not rows:
+        return ""
+    head = "The creator's direction for this section" if only is not None else "The creator's directions for sections"
+    return f"{head} (the main brief: follow it before anything else, and make what it describes clearly visible):\n" + "\n".join(rows) + "\n\n"
 
 
 def _brief(project: Project, analysis: AnalysisData, lyrics: Lyrics | None) -> str:
@@ -225,7 +239,7 @@ def generate_plan(
     project: Project, analysis: AnalysisData, lyrics: Lyrics | None, client: anthropic.Anthropic
 ) -> StylePlan:
     brief = _brief(project, analysis, lyrics)
-    draft = _call(client, f"Design the style plan for this song.\n\n{brief}", PlanDraft, project.settings.style_effort)
+    draft = _call(client, f"{directions_block(project, analysis)}Design the style plan for this song.\n\n{brief}", PlanDraft, project.settings.style_effort)
     return _to_plan(draft, len(analysis.sections))
 
 
@@ -242,7 +256,7 @@ def regenerate_section(
     brief = _brief(project, analysis, lyrics)
     current = plan.model_dump(by_alias=True, exclude={"sections": {"__all__": {"preset_params"}}})
     user = (
-        f"Here is the song:\n{brief}\n\nHere is the current style plan:\n{json.dumps(current, indent=1)}\n\n"
+        f"{directions_block(project, analysis, index)}Here is the song:\n{brief}\n\nHere is the current style plan:\n{json.dumps(current, indent=1)}\n\n"
         f"Redesign only section {index} with a fresh take that still fits the overall look. "
         f"Return it with section_ref={index}."
     )

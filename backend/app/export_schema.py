@@ -5,13 +5,13 @@ from pathlib import Path
 
 from pydantic import TypeAdapter
 
-from app.models import AnalysisData, Lyrics, ProcessStatus, Project, ProjectSummary, RenderStatus, SectionEdit, SectionsApplied, Storyboard, StylePlan
+from app.models import AnalysisData, Lyrics, ProcessStatus, Project, ProjectSummary, RenderStatus, SceneRedo, SectionEdit, SectionsApplied, Storyboard, StylePlan
 
 OUT = Path(__file__).resolve().parents[2] / "shared" / "schema" / "schema.json"
 
 
 def main() -> None:
-    models = [Project, AnalysisData, Lyrics, StylePlan, RenderStatus, ProjectSummary, ProcessStatus, Storyboard, SectionEdit, SectionsApplied]
+    models = [Project, AnalysisData, Lyrics, StylePlan, RenderStatus, ProjectSummary, ProcessStatus, Storyboard, SectionEdit, SectionsApplied, SceneRedo]
     defs: dict = {}
     for m in models:
         schema = TypeAdapter(m).json_schema(by_alias=True, mode="serialization")

@@ -214,3 +214,29 @@ def test_illustrate_is_blocked_while_another_job_runs(api, monkeypatch):
     assert client.post(f"/projects/{pid}/render").status_code == 409
     gate.set()
     assert _wait(client, pid)["state"] == "done"
+
+
+def test_the_backdrop_request_leads_with_the_direction_and_the_things_it_must_show(tmp_path):
+    claude = FakeClaude()
+    board = _board(scene_overrides={0: {"include": ["a river", "a stone bridge"]}})
+    project = Project(id="p", section_descriptions=["a river with a stone bridge at dawn", ""])
+    (tmp_path / "storyboard.json").write_text(board.model_dump_json())
+    illustrate.run(tmp_path, project, None, {0, 1}, None, None, _job()[0], client=claude)
+    prompts = {("river" in c["messages"][0]["content"]): c["messages"][0]["content"] for c in claude.calls if c["system"] == BACKGROUND_SYSTEM}
+    with_direction, without = prompts[True], prompts[False]
+    assert with_direction.index("creator_direction") < with_direction.index('"setting"') and with_direction.index("must_show") < with_direction.index('"setting"')
+    assert "come first" in with_direction and "stone bridge" in with_direction
+    assert "creator_direction" not in without and "must_show" not in without and "come first" not in without
+    # The system prompt makes the direction the main brief and the listed things unmissable.
+    assert "MAIN BRIEF" in BACKGROUND_SYSTEM and "must_show" in BACKGROUND_SYSTEM and "the direction wins" in BACKGROUND_SYSTEM
+
+
+def test_a_drawn_backdrop_remembers_the_direction_it_came_from(tmp_path):
+    board = _board(scene_overrides={0: {"direction_used": "kept as it was"}})
+    project = Project(id="p", section_descriptions=["a lighthouse on a cliff", "something else"])
+    (tmp_path / "storyboard.json").write_text(board.model_dump_json())
+    illustrate.run(tmp_path, project, None, {0}, None, None, _job()[0], client=FakeClaude())
+    saved = Storyboard.model_validate_json((tmp_path / "storyboard.json").read_text())
+    first, second = saved.scenes
+    assert first.art_direction == "a lighthouse on a cliff" and first.direction_used == "kept as it was"
+    assert second.art_direction == ""  # not drawn this time

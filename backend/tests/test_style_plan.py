@@ -260,3 +260,19 @@ def test_a_sections_colour_grade_comes_through_and_defaults_to_none():
 
     assert to_section(SectionDraft(section_ref=0, visual_preset="orbits", intensity=0.5, palette_shift=0, camera_motion="none", lyric_animation="pop", transition_in="flash", grade="noir")).grade == "noir"
     assert to_section(_section(0)).grade == "none"
+
+
+def test_the_creators_directions_lead_the_style_plan_request_and_are_the_main_brief():
+    from app.style_plan import SYSTEM
+
+    project = PROJECT.model_copy(update={"section_descriptions": ["slow and tender, like dawn light"]})
+    client = FakeClient(_draft([_section(0), _section(1), _section(2)]))
+    generate_plan(project, _analysis(), None, client=client)
+    user = client.calls[0]["messages"][0]["content"]
+    assert user.startswith("The creator's directions for sections") and "like dawn light" in user
+    assert "main brief" in SYSTEM
+    # A redo of one section leads with just that section's direction.
+    client = FakeClient(_section(1))
+    plan = generate_plan(project, _analysis(), None, client=FakeClient(_draft([_section(0), _section(1), _section(2)])))
+    regenerate_section(project, _analysis(), None, plan, 0, client=client)
+    assert client.calls[0]["messages"][0]["content"].startswith("The creator's direction for this section")

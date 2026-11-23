@@ -282,9 +282,15 @@ class SceneDraft(BaseModel):
     crowd: int | None = Field(default=None, ge=0, le=8, description="Background figures")
     props: list[Prop] = Field(default_factory=list, max_length=4)
     objects: list[SceneObject] = Field(default_factory=list, max_length=3)
+    # Concrete things from the creator's direction that must be clearly visible in the backdrop (a river, a lighthouse).
+    include: list[str] = Field(default_factory=list, max_length=6)
 
 
 class Scene(SceneDraft):
+    # The creator's direction this scene was planned from, and the one its backdrop was drawn from; the editor flags a scene
+    # whose section direction has changed since.
+    direction_used: str = Field(default="", max_length=2000)
+    art_direction: str = Field(default="", max_length=2000)
     # Overrides the storyboard's default for this scene only.
     illustration: Illustration | None = None
     # Free-form backdrop in a 16:9 drawing with the ground line at y=693 (see svgsafe); replaces sky, scenery and props.
@@ -309,6 +315,13 @@ class LineCue(BaseModel):
     at: float = Field(ge=0)
     symbol: Symbol | None = None
     holding: Held | None = None
+
+
+class SceneRedo(BaseModel):
+    """A redone scene, and any objects Claude defined for the creator's direction (their art is drawn with Draw art)."""
+
+    scene: Scene
+    new_objects: list[CustomObject] = Field(default_factory=list)
 
 
 class Storyboard(BaseModel):

@@ -1,5 +1,5 @@
 import { getApiKey } from "./apiKey";
-import type { AnalysisData, Lyrics, Meta, ProcessStatus, Project, ProjectSummary, RenderStatus, Scene, SectionEdit, SectionsApplied, Settings, Storyboard, StylePlan, StyleSection } from "../../shared/types";
+import type { AnalysisData, Lyrics, Meta, ProcessStatus, Project, ProjectSummary, RenderStatus, SceneRedo, SectionEdit, SectionsApplied, Settings, Storyboard, StylePlan, StyleSection } from "../../shared/types";
 
 const BASE = "/api";
 
@@ -118,7 +118,7 @@ export const processStatus = async (id: string) => orNull<ProcessStatus>(await r
 export const getStoryboard = async (id: string) => orNull<Storyboard>(await request(`${BASE}/projects/${id}/storyboard`));
 export const saveStoryboard = async (id: string, board: Storyboard): Promise<Storyboard> => json(await put(`${BASE}/projects/${id}/storyboard`, board));
 export const generateStoryboard = async (id: string): Promise<Storyboard> => json(await claudeRequest(`${BASE}/projects/${id}/storyboard/generate`, { method: "POST" }));
-export const regenerateScene = async (id: string, index: number): Promise<Scene> =>
+export const regenerateScene = async (id: string, index: number): Promise<SceneRedo> =>
   json(await claudeRequest(`${BASE}/projects/${id}/storyboard/scenes/${index}/regenerate`, { method: "POST" }));
 
 export async function startIllustration(id: string, target?: { scenes?: number[]; characters?: string[]; objects?: string[] }): Promise<ProcessStatus> {
