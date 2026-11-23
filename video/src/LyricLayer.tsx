@@ -1,6 +1,6 @@
 import { AbsoluteFill, spring, useCurrentFrame, useVideoConfig } from "remotion";
 import type { Line, LyricAnimation, StylePlan } from "../../shared/types";
-import { background, brightestAccent, foreground, hexToHsl } from "./color";
+import { background, brightestAccent, foreground, hexToHsl, mix } from "./color";
 import { dissolveStyle, DISSOLVE_S, inkStampOffset, inkStampScale, REVEAL_LEAD, typedProgress } from "./lyricFx";
 import { easeInOutSine } from "./easing";
 import { canWrite } from "./strokeFont";
@@ -20,6 +20,8 @@ type Props = {
   opacity: number;
   /** 0 while current, rising to 1 as the next line takes over: the line lifts away as it goes. */
   exit: number;
+  /** A soft tint from a lyric cue (see cueTint): a symbol on screen, an item in hand. */
+  tint?: { color: string; amount: number } | null;
 };
 
 // Pen letters have a smaller x-height than the typefaces, so they are set larger to read at the same size.
@@ -35,13 +37,14 @@ export const LyricScrim = ({ palette, opacity }: { palette: string[]; opacity: n
   <AbsoluteFill style={{ opacity, background: `radial-gradient(ellipse 70% 30% at center, rgba(${haloOf(palette)},0.55), transparent 100%)` }} />
 );
 
-export const LyricLayer = ({ line, mode, plan, palette, beats, fontFamily, t, seed, opacity, exit }: Props) => {
+export const LyricLayer = ({ line, mode, plan, palette, beats, fontFamily, t, seed, opacity, exit, tint }: Props) => {
   const frame = useCurrentFrame();
   const { fps, width, height } = useVideoConfig();
   const words = wordStates(line, t);
   const emphasis = new Set((plan.emphasis_words ?? []).map(normalizeWord));
-  const base = foreground(palette);
-  const hi = brightestAccent(palette);
+  const tinted = (color: string) => (tint ? mix(color, tint.color, tint.amount) : color);
+  const base = tinted(foreground(palette));
+  const hi = tinted(brightestAccent(palette));
   const portrait = height > width;
   const size = Math.min(width * (portrait ? 0.085 : 0.05), height * 0.09);
   const halo = haloOf(palette);

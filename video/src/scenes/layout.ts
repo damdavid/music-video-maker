@@ -1,4 +1,4 @@
-import type { ObjectSize, Placement, PropKind, ResolvedObject, ResolvedScene } from "./normalize";
+import type { ContactKind, ObjectSize, Placement, PropKind, ResolvedObject, ResolvedScene } from "./normalize";
 
 /** Horizontal position of each placement, as a fraction of the frame width. */
 export const PLACEMENT_X: Record<Placement, number> = { left: 0.26, center: 0.5, right: 0.74 };
@@ -50,13 +50,58 @@ export function objectPlacements(scene: ResolvedScene, objects: ResolvedObject[]
 }
 
 
+/** How far apart (in figure heights) two touching figures stand, centre to centre. */
+export const CONTACT_GAP: Record<ContactKind, number> = { hug: 0.26, hold_hands: 0.36, high_five: 0.54, arm_around: 0.3 };
+/** A hug or a high five is face to face; holding hands or an arm round the shoulder is side by side. */
+export const faceToFace = (kind: ContactKind) => kind === "hug" || kind === "high_five";
+
+/** Where a figure in a touching pair stands and which way it faces. `a` is the one the contact was set on. */
+export type Pairing = {
+  kind: ContactKind;
+  role: "a" | "b";
+  /** The other figure's index in scene.characters. */
+  partner: number;
+  /** Centre of the pair as a fraction of the frame width (the first figure's place), and this figure's offset from it in figure heights. */
+  x: number;
+  dx: number;
+  facing: "left" | "right";
+};
+
 /**
- * Which way each character in the scene faces. Someone who looks at another character turns to face them (so two people
- * who look at each other face each other); everyone else keeps the facing the storyboard gave them.
+ * Pairs the storyboard sets touching, per character (null for everyone else). The pair stands together at the first
+ * figure's place: face to face with that one on the left, or side by side facing the way that one faces, that one ahead.
+ */
+export function pairings(scene: ResolvedScene): (Pairing | null)[] {
+  const out: (Pairing | null)[] = scene.characters.map(() => null);
+  scene.characters.forEach((a, i) => {
+    const j = a.contact ? scene.characters.findIndex((c, k) => k !== i && c.character_id === a.contact!.partner) : -1;
+    if (!a.contact || j < 0 || out[i] || out[j]) return;
+    const { kind } = a.contact;
+    const x = PLACEMENT_X[a.placement];
+    const gap = CONTACT_GAP[kind];
+    if (faceToFace(kind)) {
+      out[i] = { kind, role: "a", partner: j, x, dx: -gap / 2, facing: "right" };
+      out[j] = { kind, role: "b", partner: i, x, dx: gap / 2, facing: "left" };
+    } else {
+      const s = a.facing === "right" ? 1 : -1;
+      out[i] = { kind, role: "a", partner: j, x, dx: (s * gap) / 2, facing: a.facing };
+      out[j] = { kind, role: "b", partner: i, x, dx: (-s * gap) / 2, facing: a.facing };
+    }
+  });
+  return out;
+}
+
+/**
+ * Which way each character in the scene faces. A touching pair is posed by its contact; someone who looks at another
+ * character turns to face them (so two people who look at each other face each other); everyone else keeps the facing
+ * the storyboard gave them.
  */
 export function facings(scene: ResolvedScene): ("left" | "right")[] {
   const x = new Map(scene.characters.map((c) => [c.character_id, PLACEMENT_X[c.placement]]));
-  return scene.characters.map((c) => {
+  const pairs = pairings(scene);
+  return scene.characters.map((c, i) => {
+    const pair = pairs[i];
+    if (pair) return pair.facing;
     const target = c.lookAt && c.lookAt !== "camera" ? x.get(c.lookAt) : undefined;
     const mine = PLACEMENT_X[c.placement];
     return target === undefined || target === mine ? c.facing : target < mine ? "left" : "right";

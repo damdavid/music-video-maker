@@ -39,8 +39,13 @@ def _font():
     return None
 
 
-def _word_material(name: str, base: str, hi: str, t0: float, t1: float, fps: int, fade: tuple[float, float, float, float]):
-    """Emission that fades in with the line, turns to the highlight colour as the word is sung, and fades out."""
+def _rgba_sockets(node):
+    return [s for s in node.inputs if s.type == "RGBA" and s.enabled]
+
+
+def _word_material(name: str, base: str, hi: str, t0: float, t1: float, fps: int, fade: tuple[float, float, float, float], scene=None):
+    """Emission that fades in with the line, turns to the highlight colour as the word is sung, and fades out.
+    With a `scene`, a soft tint from the lyric cues (scene["mvm_tint"] = r, g, b, amount) is mixed in through drivers."""
     mat = bpy.data.materials.new(name)
     mat.use_nodes = True
     nt = mat.node_tree
@@ -60,9 +65,30 @@ def _word_material(name: str, base: str, hi: str, t0: float, t1: float, fps: int
         mix.inputs["Fac"].keyframe_insert("default_value", frame=frame)
     rgb = materials._rgba(base)
     hrgb = materials._rgba(hi)
+    target = em.inputs["Color"]
+    if scene is not None:
+        tint = nt.nodes.new("ShaderNodeMix")
+        tint.data_type = "RGBA"
+        tint.blend_type = "MIX"
+        a, b = _rgba_sockets(tint)
+        factor = next(s for s in tint.inputs if s.name == "Factor" and s.type == "VALUE")
+        nt.links.new(next(o for o in tint.outputs if o.type == "RGBA"), em.inputs["Color"])
+        target = a
+        # The cue tint rides on scene["mvm_tint"], which the caller keys per frame; each material reads it through drivers.
+        for sock, channels in ((factor, [(None, 3)]), (b, [(i, i) for i in range(3)])):
+            idx = list(tint.inputs).index(sock)
+            for sub, comp in channels:
+                path = f'nodes["{tint.name}"].inputs[{idx}].default_value'
+                fc = nt.driver_add(path, sub) if sub is not None else nt.driver_add(path)
+                fc.driver.type = "AVERAGE"
+                var = fc.driver.variables.new()
+                var.type = "SINGLE_PROP"
+                var.targets[0].id_type = "SCENE"
+                var.targets[0].id = scene
+                var.targets[0].data_path = f'["mvm_tint"][{comp}]'
     for frame, color in ((a0 - 1, rgb), (t0 * fps - 1, rgb), (t0 * fps + 2, hrgb)):
-        em.inputs["Color"].default_value = color
-        em.inputs["Color"].keyframe_insert("default_value", frame=frame)
+        target.default_value = color
+        target.keyframe_insert("default_value", frame=frame)
     return mat
 
 
@@ -120,7 +146,7 @@ def build(scene, cam_obj, lines: list[dict], fps: int, palette: tuple[str, str],
         out_f = max(out_s * fps, start_f + in_f + 1)
         fade = (start_f, start_f + in_f, out_f, out_f + out_len * fps)
         for obj, w in zip(objs, words):
-            mat = _word_material(f"{obj.name}-m", base, hi, w["start"], w["end"], fps, fade)
+            mat = _word_material(f"{obj.name}-m", base, hi, w["start"], w["end"], fps, fade, scene)
             obj.data.materials.append(mat)
             obj.hide_render = True
             if handoff:

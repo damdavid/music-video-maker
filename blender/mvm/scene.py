@@ -7,7 +7,7 @@ import zlib
 import bpy
 from mathutils import Vector
 
-from . import body, camera, figure, grade as grading, lyrics as lyric_text, motion, rules, wear, weather as precipitation, world
+from . import body, camera, contact, figure, grade as grading, lyrics as lyric_text, motion, rules, wear, weather as precipitation, world
 from .timing import beat_period, beat_phase, bars_per_shot, eye_open, hash_noise, mouth_open, plan_shots, section_spans, title_window, video_size, Shot
 
 PLACE_X = {"left": -2.4, "center": 0.0, "right": 2.4}
@@ -22,11 +22,21 @@ LEANABLE = ("signpost", "lamp", "tree", "fence")
 LEAN_BASE_Y = {"lamp": 2.2, "signpost": 2.2, "fence": 2.4, "tree": 3.0}
 
 
+def materials_rgb(hex_color: str) -> list[float]:
+    from .materials import _rgba
+
+    return list(_rgba(hex_color)[:3])
+
+
 def facing_signs(chars: list[dict]) -> list[float]:
-    """Which way each character faces: toward whoever they look at (another character), else the way the storyboard gave."""
+    """Which way each character faces: as their pair does if they are touching someone, else toward whoever they look at, else the way the storyboard gave."""
     xs = {c["character_id"]: PLACE_X[c.get("placement") or "center"] for c in chars}
+    pairs = contact.pairings(chars)
     out = []
-    for c in chars:
+    for c, pair in zip(chars, pairs):
+        if pair:
+            out.append(pair.sign)
+            continue
         own = 1.0 if (c.get("facing") or "right") == "right" else -1.0
         target = c.get("looks_at")
         if target and target != "camera" and target != c["character_id"] and target in xs and xs[target] != xs[c["character_id"]]:
@@ -92,6 +102,7 @@ def build(props: dict, seconds: float | None, emit):
     onset, onset_rate = analysis.get("onset_strength") or [], analysis.get("fps") or 30
     crowds_on = settings.get("crowds", True)
     palette_grade = grading.Grade(scene)
+    scene["mvm_tint"] = [1.0, 1.0, 1.0, 0.0]  # the lyric tint from cues, keyed per frame and read by the word materials
 
     spans = section_spans(analysis)
     beats, bpm, downbeats = analysis.get("beats") or [], analysis.get("bpm") or 120, analysis.get("downbeats") or []
@@ -185,11 +196,15 @@ def build(props: dict, seconds: float | None, emit):
         # Over the scene the light moves part of the way on toward the next time of day.
         prev_tod = (tod, weather, (rules.next_time_of_day(tod), rules.drift_amount(1.0)))
         members = sceneinfo["members"]
+        # Lamps and the campfire move with the music, so find them among what was built (a light and its base strength).
+        lamps = [(o, o.data.energy) for o in coll.objects if o.type == "LIGHT" and o.name.startswith(("lampl", "pl"))]
+        fire = [(o, o.data.energy) for o in coll.objects if o.type == "LIGHT" and o.name.startswith("firelight")]
+        flames = [(o, o.scale.z) for o in coll.objects if o.name.startswith("flame")]
         lead_action = members[0][1].get("action", "idle") if members else "idle"
         shots = plan_shots(a, b, downbeats, bar_len, bars_per_shot(intensity), lead_action, seed + i)
         if not auto_cuts:
             shots = [Shot(a, b, shots[0].kind)]
-        runs.append(dict(i=i, a=a, b=b, f0=f0, f1=f1, origin=origin, setting=setting, members=members, crowd=sceneinfo["crowd"], weather=sceneinfo["weather"], symbols=sceneinfo["symbols"], rim=sceneinfo["rim"], tod=tod, grade=(styles.get(i) or {}).get("grade") or "none", intensity=intensity, shots=shots, fill=world.FILL[tod] * (0.3 if setting == "room" else 1.0)))
+        runs.append(dict(i=i, a=a, b=b, f0=f0, f1=f1, origin=origin, setting=setting, members=members, crowd=sceneinfo["crowd"], weather=sceneinfo["weather"], symbols=sceneinfo["symbols"], lamps=lamps, fire=fire, flames=flames, rim=sceneinfo["rim"], tod=tod, grade=(styles.get(i) or {}).get("grade") or "none", intensity=intensity, shots=shots, fill=world.FILL[tod] * (0.3 if setting == "room" else 1.0)))
 
     if prev_tod is not None and runs:
         sky.key(min(runs[-1]["f1"], n_frames) - 1, *prev_tod)
@@ -219,13 +234,19 @@ def build(props: dict, seconds: float | None, emit):
         azimuths = cam.shot_azimuths(r["shots"], facing_sign, seed + r["i"])
         open_world = r["setting"] in world.OPEN
         paths = []
+        pairs = contact.pairings([c for _, c, _ in members])
         for fig, c, j in members:
-            action = c.get("action", "idle")
-            sign = signs[len(paths)]
-            speed = motion.ground_speed(action) * fig.h if open_world else 0.0
+            k = len(paths)
+            pair = pairs[k]
+            # A touching pair walks together at the first figure's pace and stands round the first figure's place.
+            lead_c, lead_fig = (members[k if not pair else (k if pair.role == "a" else pair.partner)][1], members[k if not pair else (k if pair.role == "a" else pair.partner)][0])
+            action = lead_c.get("action", "idle")
+            sign = signs[k]
+            speed = motion.ground_speed(action) * lead_fig.h if open_world else 0.0
             span = r["b"] - r["a"]
             travel = min(speed * span / 2, 180.0)
-            x0 = PLACE_X[c.get("placement") or "center"] - sign * travel
+            place = PLACE_X[(pair.placement if pair else c.get("placement")) or "center"] + (pair.dx * fig.h if pair else 0.0)
+            x0 = place - sign * travel
             paths.append((x0, sign, speed))
         for f in range(r["f0"], r["f1"]):
             t = f / fps
@@ -245,18 +266,24 @@ def build(props: dict, seconds: float | None, emit):
                 if holding:
                     pose = motion.hold_pose(pose, holding, t, beat, energy)
                 posed.append((pose, holding))
+            # Touching pairs lean together and have an arm solved so their hands meet.
+            xs = [x0 + sg * sp * (t - r["a"]) for x0, sg, sp in paths]
+            finals = contact.contact_poses(pairs, [contact.Body(posed[q][0], xs[q], members[q][0].h, paths[q][1]) for q in range(len(members))])
             for k, (fig, c, j) in enumerate(members):
                 action = c.get("action", "idle")
                 x0, sign, speed = paths[k]
-                pose, holding = posed[k]
+                pose, holding = finals[k], posed[k][1]
                 fig.hold(f, holding)
                 # What the lyrics call for, else the scene's own expression, else what the action suggests; the music turns it up or down.
                 mood = (rules.mood_at(moods, t) if k == 0 else None) or c.get("expression") or BY_ACTION.get(action, "neutral")
                 target = next((q for q, m in enumerate(members) if m[1]["character_id"] == c.get("looks_at") and q != k), None) if c.get("looks_at") not in (None, "camera") else None
+                if target is None and pairs[k] and pairs[k].kind in (*contact.FACE_TO_FACE, "arm_around"):
+                    target = pairs[k].partner  # looks at the one they are touching
                 look = rules.eye_look(lambda ch, rate, j=j: hash_noise(seed + 40 + 7 * j + ch, t * rate * math.tau), action, c.get("looks_at") == "camera", pose.y, posed[target][0].y if target is not None else None)
                 fig.apply(pose, mouth_open(lines, t) if k == 0 and lines else 0.0, eye_open(t, j), mood, rules.expression_strength(energy), look, -sign * 22.0 if c.get("looks_at") == "camera" else None)
-                x = x0 + sign * speed * (t - r["a"])
-                fig.root.location = (x, r["origin"][1] + (j - (len(members) - 1) / 2) * 0.9, 0.0)
+                x = xs[k]
+                # A pair stands on one line, so their hands can meet; everyone else is spread a little in depth.
+                fig.root.location = (x, r["origin"][1] + (0.0 if pairs[k] else (j - (len(members) - 1) / 2) * 0.9), 0.0)
                 # Looking at the camera turns the figure most of the way round to face it.
                 yaw = 36.0 * sign if c.get("looks_at") == "camera" else 90.0 * sign
                 fig.root.rotation_euler = (0.0, 0.0, math.radians(yaw))
@@ -286,6 +313,19 @@ def build(props: dict, seconds: float | None, emit):
                     rig.place(f, pos, height * 0.26 * shrink, yaw)
                 else:
                     rig.hide(f)
+            mood_s = rules.scenery_mood(energy, smoothed(onset, onset_rate, t), rules.beat_envelope(beats, t))
+            for lamp, base_e in r["lamps"]:
+                lamp.data.energy = base_e * (1.0 + 0.5 * mood_s["glow"]) * (1.0 + 0.08 * mood_s["flicker"] * hash_noise(seed + 70, t * 5))
+                lamp.data.keyframe_insert("energy", frame=f)
+            for fl, base_e in r["fire"]:
+                fl.data.energy = base_e * (0.8 + 1.1 * mood_s["energy"] + 0.4 * mood_s["glow"]) * (1.0 + 0.1 * hash_noise(seed + 71, t * 9))
+                fl.data.keyframe_insert("energy", frame=f)
+            for flame, base_z in r["flames"]:
+                flame.scale.z = base_z * (1.0 + 0.9 * mood_s["energy"] + 0.3 * mood_s["glow"] + 0.12 * hash_noise(seed + 72 + len(flame.name), t * 9))
+                flame.keyframe_insert("scale", frame=f, index=2)
+            tint = rules.cue_tint(cs)
+            scene["mvm_tint"] = [*materials_rgb(tint[0]), tint[1]] if tint else [1.0, 1.0, 1.0, 0.0]
+            scene.keyframe_insert('["mvm_tint"]', frame=f)
             precipitation.key_amount(r["weather"], rules.weather_mood(energy, smoothed(onset, onset_rate, t)), f)
             # Light that follows the song: an edge of light behind the lead, a lift on each beat, and the section's colour grade.
             light = rules.lighting_at(r["tod"], rules.beat_envelope(beats, t), rules.beat_envelope(downbeats, t), energy)

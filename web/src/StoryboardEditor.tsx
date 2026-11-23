@@ -5,7 +5,7 @@ import { pollJob, useAlive } from "./jobs";
 import { Select } from "./Select";
 import { fmtRange } from "./time";
 import { defaultExpression } from "video/src/scenes/face";
-import { ACCESSORIES, ACTIONS, EXPRESSIONS, GENDERS, HAIRS, HATS, HELD, SYMBOLS, ILLUSTRATIONS, OBJECT_SIZES, OUTFITS, PLACEMENTS, PROP_KINDS, SETTINGS, TIMES, WEATHERS, legacyGender } from "./vocab";
+import { ACCESSORIES, ACTIONS, EXPRESSIONS, GENDERS, CONTACTS, HAIRS, HATS, HELD, SYMBOLS, ILLUSTRATIONS, OBJECT_SIZES, OUTFITS, PLACEMENTS, PROP_KINDS, SETTINGS, TIMES, WEATHERS, legacyGender } from "./vocab";
 
 type PropKind = (typeof PROP_KINDS)[number];
 
@@ -108,6 +108,9 @@ export function StoryboardEditor({ projectId, board, sections, sectionDescriptio
       const rest = (cur.cues ?? []).filter((c) => Math.abs(c.at - at) >= 0.02);
       return { ...cur, cues: [...rest, ...(next.symbol || next.holding ? [next] : [])].sort((x, y) => x.at - y.at) };
     });
+  // A pair touching is set on one of its two characters; a character can be in only one pair, so choosing a partner clears theirs.
+  const setContact = (i: number, ci: number, contact: SceneCharacter["contact"]) =>
+    setScene(i, { characters: (scenes.find((sc) => sc.section_ref === i)?.characters ?? []).map((x, j) => (j === ci ? { ...x, contact } : contact && x.character_id === contact.partner ? { ...x, contact: null } : x)) });
   // What a character wears in one scene instead of their usual look; a scene's wear with nothing set is dropped.
   const setWear = (i: number, ci: number, patch: NonNullable<SceneCharacter["wear"]>) =>
     setScene(i, {
@@ -416,8 +419,33 @@ export function StoryboardEditor({ projectId, board, sections, sectionDescriptio
                                 value={sc.wear?.accessories == null ? "cast" : (sc.wear.accessories[0] ?? "none")}
                                 options={["cast", "none", ...ACCESSORIES] as const}
                                 label={(v) => (v === "cast" ? "usual accessories" : v === "none" ? "no accessories" : v)}
-                                onChange={(v) => setWear(i, ci, { accessories: v === "cast" ? null : v === "none" ? [] : [v] })}
+                                onChange={(v) => setWear(i, ci, { accessories: v === "cast" ? null : v === "none" ? [] : sc.wear?.accessories?.[1] && sc.wear.accessories[1] !== v ? [v, sc.wear.accessories[1]] : [v] })}
                               />
+                              {sc.wear?.accessories?.[0] && (
+                                <Select
+                                  aria-label="Second accessory this scene"
+                                  value={sc.wear.accessories[1] ?? "none"}
+                                  options={["none", ...ACCESSORIES.filter((a) => a !== sc.wear?.accessories?.[0])] as const}
+                                  label={(v) => (v === "none" ? "no second accessory" : `and ${v}`)}
+                                  onChange={(v) => setWear(i, ci, { accessories: v === "none" ? [sc.wear!.accessories![0]] : [sc.wear!.accessories![0], v] })}
+                                />
+                              )}
+                              <Select
+                                aria-label="Contact"
+                                value={sc.contact?.kind ?? "none"}
+                                options={["none", ...CONTACTS] as const}
+                                label={(v) => (v === "none" ? "no contact" : v.replace("_", " "))}
+                                onChange={(v) => setContact(i, ci, v === "none" ? null : { partner: sc.contact?.partner ?? (s.characters ?? []).find((_, j) => j !== ci)?.character_id ?? "", kind: v })}
+                              />
+                              {sc.contact && (
+                                <Select
+                                  aria-label="Contact with"
+                                  value={sc.contact.partner}
+                                  options={(s.characters ?? []).filter((_, j) => j !== ci).map((x) => x.character_id)}
+                                  label={(v) => `with ${characterLabel(v)}`}
+                                  onChange={(v) => setContact(i, ci, { partner: v, kind: sc.contact!.kind })}
+                                />
+                              )}
                               <button className="btn btn-ghost btn-compact" onClick={() => setScene(i, { characters: (s.characters ?? []).filter((_, j) => j !== ci) })}>Remove</button>
                             </div>
                           ))}

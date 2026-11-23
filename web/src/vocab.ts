@@ -23,6 +23,8 @@ export const ACCESSORIES = ["glasses", "sunglasses", "scarf", "headphones", "bac
 export const GRADES = ["none", "warm", "cool", "faded", "noir", "vivid", "dream"] as const satisfies readonly NonNullable<StyleSection["grade"]>[];
 /** Pictures that can pop up beside the lead at a lyric line; must match `Symbol` in backend/app/models.py. */
 export const SYMBOLS = ["heart", "star", "rose", "key", "door", "moon", "bird", "clock"] as const satisfies readonly NonNullable<NonNullable<Storyboard["cues"]>[number]["symbol"]>[];
+/** Ways two characters can touch; must match `ContactKind` in backend/app/models.py. */
+export const CONTACTS = ["hug", "hold_hands", "high_five", "arm_around"] as const satisfies readonly NonNullable<SceneCharacter["contact"]>["kind"][];
 export const GENDERS = ["male", "female"] as const;
 /** What a character can carry; must match `Held` in backend/app/models.py. */
 export const HELD = ["umbrella", "suitcase", "microphone", "flowers", "lantern", "book", "guitar", "phone", "flag", "balloon", "cup"] as const satisfies readonly NonNullable<SceneCharacter["holding"]>[];

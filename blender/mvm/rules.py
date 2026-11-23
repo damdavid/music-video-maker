@@ -132,10 +132,25 @@ def cues_at(cues: list[dict] | None, t: float) -> dict:
             symbol = (c["at"], c["symbol"])
         if c.get("holding") and (holding is None or c["at"] > holding[0]):
             holding = (c["at"], c["holding"])
+    held = holding if holding and t - holding[0] <= HOLD_S else None
     return dict(
         symbol=(symbol[1], t - symbol[0]) if symbol and t - symbol[0] <= SYMBOL_S else None,
-        holding=holding[1] if holding and t - holding[0] <= HOLD_S else None,
+        holding=held[1] if held else None,
+        hold_age=t - held[0] if held else None,
     )
+
+
+SYMBOL_COLOR = {"heart": "#ff6b86", "star": "#ffd84a", "rose": "#e24a66", "key": "#f0c24a", "door": "#d89a64", "moon": "#f4e7a8", "bird": "#5ab4ea", "clock": "#e8e2d0"}
+HELD_COLOR = {"umbrella": "#e8a33d", "suitcase": "#c98f5a", "microphone": "#d4d8e2", "flowers": "#f08aa8", "lantern": "#ffcf7a", "book": "#d96a6a", "guitar": "#d9944a", "phone": "#bfe3ff", "flag": "#e8566a", "balloon": "#e8566a", "cup": "#f1e6d8"}
+
+
+def cue_tint(state: dict) -> tuple[str, float] | None:
+    """A soft tint for the lyrics: strong while a symbol is up, gentler while an item is in hand (the same as the other renderer's)."""
+    ramp = lambda age, length: max(0.0, min(1.0, age / 0.3, (length - age) / 0.6))
+    symbol = (SYMBOL_COLOR[state["symbol"][0]], 0.6 * ramp(state["symbol"][1], SYMBOL_S)) if state["symbol"] else None
+    held = (HELD_COLOR[state["holding"]], 0.3 * ramp(state["hold_age"], HOLD_S)) if state["holding"] and state["hold_age"] is not None else None
+    best = (symbol if symbol[1] >= held[1] else held) if symbol and held else (symbol or held)
+    return best if best and best[1] > 0.005 else None
 
 
 _LOOK = {"look_up": (0.2, -0.85), "sit": (0.3, 0.4), "slump": (0.1, 0.65), "cross_arms": (0.2, 0.45), "reach": (0.7, -0.2), "point": (0.85, 0.0)}
@@ -165,3 +180,9 @@ def symbol_size(age: float) -> float:
     p = min(1.0, max(0.0, age / 0.35))
     pop = p if p in (0.0, 1.0) else 1 + (c1 + 1) * (p - 1) ** 3 + c1 * (p - 1) ** 2
     return max(0.0, pop) * min(1.0, max(0.0, (SYMBOL_S - age) / 0.6))
+
+
+def scenery_mood(energy: float, onset: float, pulse: float) -> dict:
+    """What the music asks of the scenery (the same as the other renderer's): gusts on hard hits, glow on beats, flicker."""
+    clamp = lambda v: max(0.0, min(1.0, v))
+    return dict(gust=clamp((onset - 0.4) / 0.6), energy=clamp(energy), glow=clamp(0.45 * energy + 0.55 * pulse), flicker=clamp(0.15 + 0.85 * onset))

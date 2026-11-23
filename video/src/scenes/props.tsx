@@ -1,6 +1,8 @@
 import { mix } from "../color";
 import type { PropKind } from "./normalize";
 import type { SceneColors } from "./sky";
+import { CALM, type SceneryMood } from "./scenery";
+import { wobble } from "../motion";
 
 type Props = {
   kind: PropKind;
@@ -13,18 +15,20 @@ type Props = {
   pulse: number;
   /** Degrees a tree leans in the wind right now. */
   sway: number;
+  /** What the music asks of the scenery: lamps swelling and flickering, flames leaping. */
+  mood?: SceneryMood;
 };
 
 /** Ground-standing set dressing. `unit` is one figure-height in pixels; `gy` is the ground line. */
-export const PropShape = ({ kind, x, gy, unit, c, t, pulse, sway }: Props) => {
+export const PropShape = ({ kind, x, gy, unit, c, t, pulse, sway, mood = CALM }: Props) => {
   const lit = c.time === "night" || c.time === "dusk";
   switch (kind) {
     case "lamp": {
       const hgt = unit * 0.86;
       return (
         <g transform={`translate(${x} ${gy})`}>
-          {lit && <polygon points={`${-unit * 0.04},${-hgt} ${unit * 0.04},${-hgt} ${unit * 0.3},0 ${-unit * 0.3},0`} fill={c.light} opacity={0.1 + 0.015 * Math.sin(t * 3) + 0.05 * pulse} />}
-          {lit && <circle cx={0} cy={-hgt} r={unit * (0.2 + 0.03 * pulse)} fill={c.light} opacity={0.22 + 0.1 * pulse} />}
+          {lit && <polygon points={`${-unit * 0.04},${-hgt} ${unit * 0.04},${-hgt} ${unit * 0.3},0 ${-unit * 0.3},0`} fill={c.light} opacity={(0.1 + 0.015 * Math.sin(t * 3) + 0.05 * pulse) * (1 + 0.5 * mood.glow)} />}
+          {lit && <circle cx={0} cy={-hgt} r={unit * (0.2 + 0.03 * pulse + 0.04 * mood.energy)} fill={c.light} opacity={Math.max(0, 0.22 + 0.1 * pulse + 0.06 * mood.glow + 0.05 * mood.flicker * wobble(0, t, 70, 5))} />}
           <rect x={-unit * 0.009} y={-hgt} width={unit * 0.018} height={hgt} fill={c.ink} />
           <rect x={-unit * 0.06} y={-hgt - unit * 0.02} width={unit * 0.12} height={unit * 0.03} rx={unit * 0.01} fill={c.ink} />
           <circle cx={0} cy={-hgt + unit * 0.012} r={unit * 0.03} fill={lit ? c.light : mix(c.ink, c.fg, 0.4)} />
@@ -58,10 +62,11 @@ export const PropShape = ({ kind, x, gy, unit, c, t, pulse, sway }: Props) => {
         </g>
       );
     case "campfire": {
-      const flick = (k: number) => 1 + 0.12 * Math.sin(t * (9 + k * 3) + k * 2) + 0.18 * pulse;
+      // The flames leap with the music: taller and quicker the louder it is.
+      const flick = (k: number) => 1 + 0.12 * Math.sin(t * (9 + k * 3) + k * 2) + 0.18 * pulse + 0.45 * mood.energy;
       return (
         <g transform={`translate(${x} ${gy})`}>
-          {lit && <circle cx={0} cy={-unit * 0.08} r={unit * (0.34 + 0.04 * pulse)} fill={c.light} opacity={0.2 + 0.08 * pulse} />}
+          {lit && <circle cx={0} cy={-unit * 0.08} r={unit * (0.34 + 0.04 * pulse + 0.1 * mood.energy)} fill={c.light} opacity={0.2 + 0.08 * pulse + 0.12 * mood.energy} />}
           <rect x={-unit * 0.09} y={-unit * 0.025} width={unit * 0.18} height={unit * 0.03} rx={unit * 0.012} fill={c.ink} transform={`rotate(-8 0 -${unit * 0.01})`} />
           <rect x={-unit * 0.09} y={-unit * 0.025} width={unit * 0.18} height={unit * 0.03} rx={unit * 0.012} fill={c.ink} transform={`rotate(8 0 -${unit * 0.01})`} />
           {[[-0.035, 0.1, 0], [0.03, 0.13, 1], [0, 0.17, 2]].map(([dx, h, k], i) => (

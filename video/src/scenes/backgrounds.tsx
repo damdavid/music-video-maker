@@ -4,6 +4,7 @@ import { mix, withAlpha } from "../color";
 import { wobble } from "../motion";
 import { mulberry32 } from "../rng";
 import { celestialX, type SceneColors } from "./sky";
+import { CALM, type SceneryMood } from "./scenery";
 
 export type BgProps = {
   uid: string;
@@ -24,6 +25,8 @@ export type BgProps = {
   bar: number;
   /** 0 calm .. 1 stormy: how hard trees and grass move. */
   wind: number;
+  /** What the music asks of the scenery: leaning on hits, glowing and flickering lights, swelling water. */
+  mood?: SceneryMood;
 };
 
 /** How far scenery is drawn past each edge of the frame, so camera moves never reveal an edge. */
@@ -53,9 +56,9 @@ function makeBuildings(rand: () => number, width: number, minW: number, maxW: nu
   return out;
 }
 
-type BuildingsProps = { list: Building[]; tile: number; offset: number; baseY: number; bottom: number; color: string; windows: boolean; glow: string; h: number; bar: number; seed: number };
+type BuildingsProps = { list: Building[]; tile: number; offset: number; baseY: number; bottom: number; color: string; windows: boolean; glow: string; h: number; bar: number; seed: number; t: number; mood: SceneryMood };
 
-const Buildings = ({ list, tile, offset, baseY, bottom, color, windows, glow, h, bar, seed }: BuildingsProps) => {
+const Buildings = ({ list, tile, offset, baseY, bottom, color, windows, glow, h, bar, seed, t, mood }: BuildingsProps) => {
   // One path per building for all its windows: the grid would otherwise be hundreds of elements per frame.
   const shapes = useMemo(
     () =>
@@ -87,7 +90,8 @@ const Buildings = ({ list, tile, offset, baseY, bottom, color, windows, glow, h,
             <g key={i}>
               {/* Down past the frame, so the base never shows when nearer layers move more than this one. */}
               <rect x={b.x} y={baseY - b.h} width={b.w} height={bottom - (baseY - b.h)} fill={color} />
-              {lights && <path d={lights} fill={glow} opacity={0.85} />}
+              {/* The windows swell with the beat and each building's lights flicker on their own, more on hard hits. */}
+              {lights && <path d={lights} fill={glow} opacity={Math.min(1, 0.7 + 0.2 * mood.glow + 0.1 * mood.flicker * wobble(seed, t, 60 + i, 4))} />}
             </g>
           ))}
         </g>
@@ -98,9 +102,9 @@ const Buildings = ({ list, tile, offset, baseY, bottom, color, windows, glow, h,
 
 type Tree = { x: number; s: number };
 
-type PinesProps = { list: Tree[]; tile: number; offset: number; baseY: number; color: string; h: number; t: number; seed: number; wind: number };
+type PinesProps = { list: Tree[]; tile: number; offset: number; baseY: number; color: string; h: number; t: number; seed: number; wind: number; mood: SceneryMood };
 
-const Pines = ({ list, tile, offset, baseY, color, h, t, seed, wind }: PinesProps) => (
+const Pines = ({ list, tile, offset, baseY, color, h, t, seed, wind, mood }: PinesProps) => (
   <g fill={color}>
     {COPIES.map((copy) => (
       <g key={copy} transform={`translate(${copy * tile - wrap(offset, tile)} 0)`}>
@@ -108,7 +112,8 @@ const Pines = ({ list, tile, offset, baseY, color, h, t, seed, wind }: PinesProp
           const th = tr.s * h * 0.34;
           const tw = th * 0.42;
           // Each tree sways about its base on its own gust, harder in bad weather.
-          const sway = wobble(seed, t + i * 0.73, 21, 0.3) * (1.2 + 3.5 * wind);
+          // Loud music sways them harder, and a hard hit leans them over.
+          const sway = wobble(seed, t + i * 0.73, 21, 0.3) * (1.2 + 3.5 * wind) * (1 + 0.6 * mood.energy) + 5 * mood.gust * tr.s;
           return (
             <g key={i} transform={`translate(${tr.x} ${baseY}) rotate(${sway.toFixed(2)})`}>
               <rect x={-tw * 0.07} y={-th * 0.12} width={tw * 0.14} height={th * 0.14} />
@@ -124,20 +129,20 @@ const Pines = ({ list, tile, offset, baseY, color, h, t, seed, wind }: PinesProp
 );
 
 /** A strip of grass tufts along the ground line that bend with the wind. */
-const Grass = ({ from, to, y, offset, h, t, seed, wind, color }: { from: number; to: number; y: number; offset: number; h: number; t: number; seed: number; wind: number; color: string }) => {
+const Grass = ({ from, to, y, offset, h, t, seed, wind, color, mood }: { from: number; to: number; y: number; offset: number; h: number; t: number; seed: number; wind: number; color: string; mood: SceneryMood }) => {
   const step = h * 0.035;
   const blade = h * 0.03;
   let d = "";
   for (let k = Math.floor((from + offset) / step); k * step - offset <= to; k++) {
     const x = k * step - offset;
-    const lean = (wobble(seed, t * 0.6 + x * 0.002, 22, 0.5) * (0.35 + 0.6 * wind) + 0.15) * blade;
+    const lean = (wobble(seed, t * 0.6 + x * 0.002, 22, 0.5) * (0.35 + 0.6 * wind + 0.3 * mood.energy) + 0.15 + 0.45 * mood.gust) * blade;
     const tall = blade * (0.7 + 0.5 * (((k * 2654435761) >>> 0) % 100) / 100);
     for (const dx of [-0.25, 0, 0.3]) d += `M${(x + dx * step).toFixed(1)} ${y.toFixed(1)}q${(lean * 0.3).toFixed(1)} ${(-tall * 0.6).toFixed(1)} ${(lean + dx * 4).toFixed(1)} ${(-tall).toFixed(1)}`;
   }
   return <path d={d} stroke={color} strokeWidth={Math.max(1.5, h * 0.003)} strokeLinecap="round" fill="none" />;
 };
 
-export const Background = ({ uid, setting, w, h, gy, hz, t, travel, c, seed, layer, bar, wind }: BgProps) => {
+export const Background = ({ uid, setting, w, h, gy, hz, t, travel, c, seed, layer, bar, wind, mood = CALM }: BgProps) => {
   const data = useMemo(() => {
     const rand = mulberry32(seed ^ 0x9e3779b9);
     const tileW = w * 1.7;
@@ -158,7 +163,7 @@ export const Background = ({ uid, setting, w, h, gy, hz, t, travel, c, seed, lay
 
   switch (setting) {
     case "city": {
-      const sky = { tile: data.tileW, glow: c.light, windows: night, h, bar, seed, bottom };
+      const sky = { tile: data.tileW, glow: c.light, windows: night, h, bar, seed, bottom, t, mood };
       return (
         <g>
           <g {...at(0.08)}>
@@ -176,7 +181,7 @@ export const Background = ({ uid, setting, w, h, gy, hz, t, travel, c, seed, lay
       );
     }
     case "forest": {
-      const trees = { tile: data.tileW, h, t, seed, wind };
+      const trees = { tile: data.tileW, h, t, seed, wind, mood };
       return (
         <g>
           <rect {...at(0.1)} x={L} y={hz} width={W} height={bottom - hz} fill={c.ground} />
@@ -203,7 +208,7 @@ export const Background = ({ uid, setting, w, h, gy, hz, t, travel, c, seed, lay
           <path {...at(0.7)} d={hillPath(L, w + B, gy - 0.03 * h, 0.05 * h, 0.009, 5 + travel * 0.7 * 0.009, bottom)} fill={c.near} />
           <g {...at(1)}>
             <rect x={L} y={gy + 0.01 * h} width={W} height={bottom - gy} fill={mix(c.near, c.ink, 0.25)} />
-            <Grass from={L} to={w + B} y={gy + 0.012 * h} offset={travel} h={h} t={t} seed={seed} wind={wind} color={mix(c.near, c.ink, 0.45)} />
+            <Grass from={L} to={w + B} y={gy + 0.012 * h} offset={travel} h={h} t={t} seed={seed} wind={wind} mood={mood} color={mix(c.near, c.ink, 0.45)} />
           </g>
         </g>
       );
@@ -228,7 +233,8 @@ export const Background = ({ uid, setting, w, h, gy, hz, t, travel, c, seed, lay
             {Array.from({ length: 9 }, (_, k) => {
               const d = (k + 1) / 9;
               const y = hz + (seaBottom - hz) * d * d;
-              const amp = 1 + d * 5;
+              // Louder music swells the waves.
+              const amp = (1 + d * 5) * (1 + 0.9 * mood.energy);
               const shift = travel * (0.15 + 0.6 * d * d);
               let path = "";
               for (let x = L; x <= w + B; x += 30) path += `${x === L ? "M" : "L"} ${x},${(y + amp * Math.sin((x + shift) * 0.012 * (1 + d) + t * (0.8 + d))).toFixed(1)} `;
@@ -239,13 +245,13 @@ export const Background = ({ uid, setting, w, h, gy, hz, t, travel, c, seed, lay
               const d = (k + 1) / 9;
               const y = hz + (seaBottom - hz) * d * d;
               const width = w * (0.015 + 0.05 * d) * (0.7 + 0.3 * Math.sin(t * 1.7 + k * 2.1));
-              return <rect key={k} x={w * celestialX(c.time) - width / 2 + Math.sin(t * 0.9 + k) * 6} y={y - 1} width={width} height={1 + d * 3} rx={2} fill={c.celestial} opacity={0.18 + 0.4 * (1 - d * 0.5)} />;
+              return <rect key={k} x={w * celestialX(c.time) - width / 2 + Math.sin(t * 0.9 + k) * 6} y={y - 1} width={width} height={1 + d * 3} rx={2} fill={c.celestial} opacity={Math.min(1, 0.18 + 0.4 * (1 - d * 0.5) + 0.2 * mood.glow)} />;
             })}
             <rect x={w * (celestialX(c.time) - 0.025)} y={hz} width={w * 0.05} height={seaBottom - hz} fill={`url(#${uid}-refl)`} />
           </g>
           <path
             {...at(1)}
-            d={`M ${L},${bottom} L ${L},${seaBottom} ${Array.from({ length: Math.ceil(W / 40) + 1 }, (_, i) => `L ${L + i * 40},${(seaBottom + 6 * Math.sin(i * 0.7 + (travel / 40) * 0.7 + t * 1.2)).toFixed(1)}`).join(" ")} L ${w + B},${bottom} Z`}
+            d={`M ${L},${bottom} L ${L},${seaBottom} ${Array.from({ length: Math.ceil(W / 40) + 1 }, (_, i) => `L ${L + i * 40},${(seaBottom + 6 * (1 + mood.energy) * Math.sin(i * 0.7 + (travel / 40) * 0.7 + t * 1.2)).toFixed(1)}`).join(" ")} L ${w + B},${bottom} Z`}
             fill={mix(c.far, c.light, 0.22)}
           />
         </g>
@@ -274,7 +280,7 @@ export const Background = ({ uid, setting, w, h, gy, hz, t, travel, c, seed, lay
             <rect x={wx} y={wy} width={ww} height={wh} fill={`url(#${uid}-wsky)`} />
             <g clipPath={`url(#${uid}-win)`}>
               <circle cx={wx + ww * 0.7} cy={wy + wh * 0.28} r={ww * 0.07} fill={c.celestial} opacity={0.9} />
-              <Buildings list={data.far} tile={data.tileW} offset={travel * 0.02} baseY={wy + wh} bottom={wy + wh + 4} color={c.far} windows={night} glow={c.light} h={h * 0.9} bar={bar} seed={seed} />
+              <Buildings list={data.far} tile={data.tileW} offset={travel * 0.02} baseY={wy + wh} bottom={wy + wh + 4} color={c.far} windows={night} glow={c.light} h={h * 0.9} bar={bar} seed={seed} t={t} mood={mood} />
             </g>
             <rect x={wx} y={wy} width={ww} height={wh} fill="none" stroke={c.ink} strokeWidth={0.012 * h} />
             <line x1={wx + ww / 2} y1={wy} x2={wx + ww / 2} y2={wy + wh} stroke={c.ink} strokeWidth={0.008 * h} />

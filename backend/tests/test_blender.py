@@ -11,7 +11,7 @@ from app.models import Project, Settings
 from tests.client import make_client
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "blender"))
-from mvm import body, hairgen, motion, rules, symbols, timing  # noqa: E402
+from mvm import body, contact, hairgen, motion, rules, symbols, timing  # noqa: E402
 
 
 def test_the_lyric_fade_defaults_to_gentle_including_for_projects_saved_before_it_existed():
@@ -337,7 +337,8 @@ def test_the_new_actions_pose_the_arms_as_described():
 
 def test_lyric_cues_show_a_symbol_for_a_while_and_hold_an_item_until_the_next():
     cues = [{"at": 10, "symbol": "heart"}, {"at": 14, "holding": "umbrella"}, {"at": 20, "symbol": "door", "holding": "suitcase"}]
-    assert rules.cues_at(cues, 5) == {"symbol": None, "holding": None} and rules.cues_at(None, 5) == {"symbol": None, "holding": None}
+    none = {"symbol": None, "holding": None, "hold_age": None}
+    assert rules.cues_at(cues, 5) == none and rules.cues_at(None, 5) == none
     assert rules.cues_at(cues, 11)["symbol"] == ("heart", 1.0)
     assert rules.cues_at(cues, 10 + rules.SYMBOL_S + 0.1)["symbol"] is None
     assert rules.cues_at(cues, 15)["holding"] == "umbrella" and rules.cues_at(cues, 21)["holding"] == "suitcase"
@@ -374,3 +375,67 @@ def test_every_symbol_is_a_sensible_flat_shape():
 def test_the_crescent_is_hollow_on_the_side_of_the_cut():
     xs = [x for x, _ in symbols.moon()]
     assert min(xs) < -0.4 and max(xs) < 0.3  # open toward the right
+
+
+def test_the_lyric_tint_rises_and_falls_with_a_symbol_and_is_gentler_for_an_item():
+    cues = [{"at": 10, "holding": "lantern"}, {"at": 14, "symbol": "moon"}]
+    assert rules.cue_tint(rules.cues_at([], 5)) is None
+    held = rules.cue_tint(rules.cues_at(cues, 12))
+    assert held[0] == rules.HELD_COLOR["lantern"] and held[1] < 0.35
+    sym = rules.cue_tint(rules.cues_at(cues, 15))
+    assert sym[0] == rules.SYMBOL_COLOR["moon"] and sym[1] > 0.4
+    assert rules.cue_tint(rules.cues_at(cues, 14.0)) is not None  # the lantern still tints while the symbol starts
+    assert rules.cue_tint(rules.cues_at(cues, 14 + rules.SYMBOL_S + 0.1)) is not None  # the symbol is gone, the item is still in hand
+    assert rules.cue_tint(rules.cues_at(cues, 10 + rules.HOLD_S + 1)) is None
+
+
+def _forward_hand(p, side, sign=1):
+    """Where a hand ends up in the figure's plane (forward, up), from the same angles the arm is posed with."""
+    sf, sz = contact._shoulder(p)
+    upper, lower = getattr(p, side)
+    u, l = math.radians(upper), math.radians(upper + lower)
+    return (sf + math.sin(u) * body.UPPER_ARM + math.sin(l) * (body.FORE_ARM + contact.HAND), sz - math.cos(u) * body.UPPER_ARM - math.cos(l) * (body.FORE_ARM + contact.HAND))
+
+
+def test_the_arm_solver_reaches_where_it_is_told():
+    for df, dz in ((0.25, 0.05), (0.1, 0.25), (-0.1, 0.2), (0.2, -0.1), (0.0, 0.3)):
+        upper, lower = contact.arm_to(df, dz)
+        u, l = math.radians(upper), math.radians(upper + lower)
+        U, F = body.UPPER_ARM, body.FORE_ARM + contact.HAND
+        assert math.isclose(math.sin(u) * U + math.sin(l) * F, df, abs_tol=1e-6)
+        assert math.isclose(math.cos(u) * U + math.cos(l) * F, dz, abs_tol=1e-6)
+
+
+def test_pairs_stand_face_to_face_or_side_by_side_and_each_character_joins_one():
+    chars = [{"character_id": "a", "placement": "left", "facing": "left", "contact": {"partner": "b", "kind": "hug"}}, {"character_id": "b"}]
+    a, b = contact.pairings(chars)
+    assert (a.sign, b.sign) == (1.0, -1.0) and math.isclose(b.dx - a.dx, contact.GAP["hug"]) and a.placement == "left"
+    side = contact.pairings([{**chars[0], "contact": {"partner": "b", "kind": "hold_hands"}}, chars[1]])
+    assert side[0].sign == side[1].sign == -1.0 and math.isclose((side[0].dx - side[1].dx) * -1, contact.GAP["hold_hands"])
+    three = contact.pairings([chars[0], chars[1], {"character_id": "c", "contact": {"partner": "b", "kind": "hug"}}])
+    assert [p is not None for p in three] == [True, True, False]
+    assert contact.pairings([{"character_id": "a", "contact": {"partner": "ghost", "kind": "hug"}}]) == [None]
+
+
+def test_the_hands_meet_when_holding_hands_and_in_a_high_five():
+    ctx = motion.Ctx(t=1.0, beat=2.25, beat_len=0.5, energy=0.5, seed=3)
+    for kind in ("hold_hands", "high_five"):
+        pairs = contact.pairings([{"character_id": "a", "contact": {"partner": "b", "kind": kind}}, {"character_id": "b"}])
+        h = 1.75
+        bodies = [contact.Body(motion.pose_for("idle", ctx), 10.0 + pairs[i].dx * h, h, pairs[i].sign) for i in (0, 1)]
+        poses = contact.contact_poses(pairs, bodies)
+        side_a = (contact._far(bodies[0]) if kind == "hold_hands" else contact._near(bodies[0]))
+        side_b = contact._near(bodies[1])
+        wa = contact._world(bodies[0], _forward_hand(poses[0], side_a))
+        wb = contact._world(bodies[1], _forward_hand(poses[1], side_b))
+        assert math.hypot(wa[0] - wb[0], wa[1] - wb[1]) < 0.03 * h, kind
+    assert contact.contact_poses([None], [contact.Body(motion.pose_for("idle", ctx), 0.0, 1.7, 1.0)])[0] == motion.pose_for("idle", ctx)
+
+
+def test_the_scenery_mood_gusts_on_hits_glows_on_beats_and_stays_in_range():
+    assert rules.scenery_mood(0.5, 0.2, 0)["gust"] == 0 and rules.scenery_mood(0.5, 1, 0)["gust"] == 1
+    assert rules.scenery_mood(0.5, 0, 1)["glow"] > rules.scenery_mood(0.5, 0, 0)["glow"]
+    assert rules.scenery_mood(0.5, 1, 0)["flicker"] > rules.scenery_mood(0.5, 0, 0)["flicker"]
+    for e in (-1, 0, 0.5, 1, 3):
+        for o in (0, 0.5, 1):
+            assert all(0 <= v <= 1 for v in rules.scenery_mood(e, o, 0.5).values())

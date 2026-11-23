@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { Action } from "../../../shared/types";
 import { beatPhase } from "../timing";
 import { accent, ENTER_S, groundSpeed, poseFor, poseWithEntrance, type ActionCtx } from "./actions";
-import { layout, SEG } from "./rig";
+import { armTo, layout, SEG } from "./rig";
 
 const ACTIONS: Action[] = ["idle", "walk", "run", "sit", "wave", "look_up", "reach", "dance", "jump", "slump"];
 // 120 BPM: a beat every 0.5 s.
@@ -188,5 +188,28 @@ describe("entrance", () => {
         for (const pt of Object.values(j)) if (typeof pt !== "number") expect(Number.isFinite(pt.x) && Number.isFinite(pt.y)).toBe(true);
       }
     }
+  });
+});
+
+describe("armTo", () => {
+  it("reaches the point it is given, for targets all round the shoulder", () => {
+    const U = SEG.upperArm;
+    const F = SEG.foreArm;
+    for (const [dx, dy] of [[0.25, 0.05], [0.1, 0.3], [-0.12, 0.2], [0.2, -0.15], [0.0, 0.31]]) {
+      const [upper, lower] = armTo(dx, dy);
+      const rad = (d: number) => (d * Math.PI) / 180;
+      const elbow = { x: Math.sin(rad(upper)) * U, y: Math.cos(rad(upper)) * U };
+      const hand = { x: elbow.x + Math.sin(rad(upper + lower)) * F, y: elbow.y + Math.cos(rad(upper + lower)) * F };
+      expect(hand.x).toBeCloseTo(dx, 4);
+      expect(hand.y).toBeCloseTo(dy, 4);
+    }
+  });
+
+  it("hangs straight when the target is straight down at full reach, and stretches toward one out of reach", () => {
+    const [u, l] = armTo(0, SEG.upperArm + SEG.foreArm);
+    expect(Math.abs(u)).toBeLessThan(3);
+    expect(Math.abs(l)).toBeLessThan(3);
+    const far = armTo(2, 0);
+    expect(far[0] + far[1]).toBeGreaterThan(80);
   });
 });

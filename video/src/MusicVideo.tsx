@@ -5,7 +5,7 @@ import { Camera, cameraState, type CameraState } from "./Camera";
 import { background, foreground, mixPalettes, safePalette, shiftPalette } from "./color";
 import { easeInOutCubic } from "./easing";
 import { blendGrades, gradeFilter, gradeStrength } from "./grade";
-import { cuesAt } from "./scenes/cues";
+import { cuesAt, cueTint } from "./scenes/cues";
 import { expressionStrength, moodAt } from "./scenes/mood";
 import { fallbackPlan } from "./fallbackPlan";
 import { seriesFrame, smoothed } from "./features";
@@ -277,6 +277,7 @@ export const MusicVideo = ({ analysis, lyrics, plan: planProp, storyboard, meta,
             seed={seed}
             opacity={l.opacity}
             exit={l.exit}
+            tint={cueTint(cuesAt(storyboard?.cues ?? [], t))}
           />
         );
       })}
