@@ -42,6 +42,12 @@ class FakeClient:
                 outer.calls.append(kw)
                 return SimpleNamespace(parsed_output=parsed, stop_reason=stop_reason)
 
+            def create(self, **kw):
+                """The plain-JSON path (no output schema): the reply is the parsed object written out as text."""
+                outer.calls.append(kw)
+                text = "" if parsed is None else parsed.model_dump_json()
+                return SimpleNamespace(content=[SimpleNamespace(type="text", text=text)], stop_reason=stop_reason)
+
         self.beta = SimpleNamespace(messages=Messages())
 
 

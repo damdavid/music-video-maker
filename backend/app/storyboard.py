@@ -37,7 +37,7 @@ from app.models import (
     TimeOfDay,
     Weather,
 )
-from app.style_plan import _brief, _call, _clamp, _hex, directions_block
+from app.style_plan import _brief, _call_json, _clamp, _hex, directions_block
 
 SYSTEM = """You are the storyboard artist for a music video drawn entirely in code as flat, stylized illustration.
 Characters are flat figures with simple faces; emotion comes from expression, posture, action, setting, light and weather.
@@ -371,7 +371,7 @@ def generate_storyboard(
     objects: list[CustomObject] = (),
 ) -> Storyboard:
     user = f"{directions_block(project, analysis)}Design the cast and a scene for every section of this song.\n\n{_context(project, analysis, lyrics, plan, objects)}"
-    draft = _call(client, user, LooseStoryboard, project.settings.style_effort, system=SYSTEM)
+    draft = _call_json(client, user, LooseStoryboard, project.settings.style_effort, system=SYSTEM)
     cast = _cast(draft.cast)
     # Objects Claude made for the creator's directions join the creator's own; their art is drawn with "Draw art".
     made = _new_objects(draft.new_objects, {o.id for o in objects})
@@ -407,7 +407,7 @@ def regenerate_scene(
         f"Redesign only the scene for section {index} with a fresh take that still fits the story. Use only characters from the existing cast, and objects from the existing custom objects or ones you define under new_objects. "
         f"Return it with section_ref={index}."
     )
-    draft = _call(client, user, LooseRedo, project.settings.style_effort, system=SYSTEM)
+    draft = _call_json(client, user, LooseRedo, project.settings.style_effort, system=SYSTEM)
     old = next((s for s in board.scenes if s.section_ref == index), None)
     made = _new_objects(draft.new_objects[:2], {o.id for o in board.objects})
     # The old backdrop no longer matches the redesigned scene, so it is dropped; the per-scene mode choice is kept.

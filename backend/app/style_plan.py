@@ -166,6 +166,54 @@ def _brief(project: Project, analysis: AnalysisData, lyrics: Lyrics | None) -> s
     )
 
 
+def _drop_nulls(value):
+    """Nulls removed from every object, so a field Claude left null takes its default instead of failing validation."""
+    if isinstance(value, dict):
+        return {k: _drop_nulls(v) for k, v in value.items() if v is not None}
+    if isinstance(value, list):
+        return [_drop_nulls(v) for v in value]
+    return value
+
+
+def _json_object(text: str) -> dict:
+    """The JSON object in a reply, whether or not it came in a code fence or with a sentence around it."""
+    start, end = text.find("{"), text.rfind("}")
+    if start < 0 or end <= start:
+        raise StyleError("Claude's answer had no JSON in it; try again")
+    try:
+        return json.loads(text[start : end + 1])
+    except json.JSONDecodeError as e:
+        raise StyleError("Claude's answer was not valid JSON; try again") from e
+
+
+def _call_json(client: anthropic.Anthropic, user: str, model: type[BaseModel], effort: str, system: str = SYSTEM, max_tokens: int = 16000):
+    """Like _call, but without the API's structured-output grammar, which refuses a schema as large as the storyboard's
+    ("compiled grammar is too large"). The model is told the JSON Schema in the request and replies with JSON text, which
+    is parsed and validated here; the loose models and their repair code make it forgiving."""
+    prompt = (
+        f"{user}\n\nReply with ONLY one JSON object that follows this JSON Schema: no prose before or after, and no code fence. "
+        f"Leave out any field you have nothing for.\n\n{json.dumps(model.model_json_schema())}"
+    )
+    response = client.beta.messages.create(
+        model=MODEL,
+        max_tokens=max_tokens,
+        betas=[FALLBACK_BETA],
+        fallbacks="default",
+        output_config={"effort": effort},
+        system=system,
+        messages=[{"role": "user", "content": prompt}],
+    )
+    if response.stop_reason == "refusal":
+        raise StyleError("Claude declined this request")
+    if response.stop_reason == "max_tokens":
+        raise StyleError("Claude's answer was cut off before it finished; try again, or lower the effort setting")
+    text = "".join(block.text for block in response.content if getattr(block, "type", "") == "text")
+    try:
+        return model.model_validate(_drop_nulls(_json_object(text)))
+    except ValidationError as e:
+        raise StyleError(f"Claude returned an invalid answer: {e.error_count()} validation errors") from e
+
+
 def _call(client: anthropic.Anthropic, user: str, output_format: type[BaseModel], effort: str, system: str = SYSTEM, max_tokens: int = 16000):
     try:
         response = client.beta.messages.parse(
