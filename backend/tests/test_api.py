@@ -178,7 +178,7 @@ def test_a_reanalysis_that_finds_fewer_sections_prunes_what_was_keyed_to_the_res
     client.put(f"/projects/{pid}/section-descriptions", json=["a", "b", "c", "d"])
 
     # The song is analysed again and comes back with two fewer sections.
-    monkeypatch.setattr(main.pipeline, "run", lambda path, project, job: (path / "analysis.json").write_text(_analysis(2).model_dump_json()))
+    monkeypatch.setattr(main.pipeline, "run", lambda path, project, job: (path / "analysis.json").write_text(_analysis(2).model_dump_json()) and None)
     assert client.post(f"/projects/{pid}/process").status_code == 202
     for _ in range(100):
         if client.get(f"/projects/{pid}/process").json()["state"] in ("done", "error"):

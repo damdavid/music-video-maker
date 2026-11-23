@@ -71,3 +71,14 @@ def test_refined_starts_are_kept_but_a_word_keeps_its_aligned_end_and_never_over
     (line,) = alignment.align("vocals.wav", "hold on now").lines
     assert [(w.text, w.start, w.end) for w in line.words] == [("hold", 1.2, 2.7), ("on", 2.7, 3.4), ("now", 4.3, 5.0)]
     assert line.start == 1.2 and line.end == 5.0
+
+
+def test_each_aligned_line_reports_which_input_line_it_came_from(monkeypatch):
+    def word(text, start, end):
+        return SimpleNamespace(start=start, end=end, word=f" {text}", probability=0.9)
+
+    segments = [SimpleNamespace(words=[word("one", 1.0, 1.5)]), SimpleNamespace(words=[]), SimpleNamespace(words=[word("three", 5.0, 5.5)])]
+    monkeypatch.setattr(alignment, "_get_model", lambda: SimpleNamespace(align=lambda *a, **kw: SimpleNamespace(segments=segments), refine=lambda *a, **kw: None))
+    lyrics, sources = alignment.align_lines("vocals.wav", "one\ntwo\nthree")
+    assert [line.text for line in lyrics.lines] == ["one", "three"] and sources == [0, 2]
+    assert alignment.align("vocals.wav", "one\ntwo\nthree").lines == lyrics.lines

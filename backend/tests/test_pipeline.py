@@ -35,9 +35,9 @@ def fakes(tmp_path, monkeypatch):
         calls.append("align")
         if on_stage:
             on_stage("refining timings")
-        return Lyrics(lines=[Line(start=0, end=1, text=text)])
+        return Lyrics(lines=[Line(start=0, end=1, text=text)]), [0]
 
-    monkeypatch.setattr(pipeline, "align", fake_align)
+    monkeypatch.setattr(pipeline, "align_lines", fake_align)
     return calls, seen
 
 
