@@ -13,6 +13,11 @@ from tests.test_storyboard import COLORS
 from tests.test_style_plan import FakeClient, PROJECT, _analysis
 
 
+def _reply(parsed, stop_reason="end_turn"):
+    """What the client's create() returns when Claude answers with JSON text."""
+    return lambda **kw: SimpleNamespace(content=[SimpleNamespace(type="text", text=parsed.model_dump_json())], stop_reason=stop_reason)
+
+
 def _board(scenes, cast=None):
     return Storyboard.model_validate({"cast": cast if cast is not None else [{"id": "hero", "colors": COLORS}], "scenes": scenes})
 
@@ -36,7 +41,7 @@ def test_generate_sends_storyboard_schema_system_prompt_and_context():
     board = generate_storyboard(PROJECT, _analysis(), lyrics, PLAN, client=client)
 
     call = client.calls[0]
-    assert call["output_format"] is LooseStoryboard and call["system"] == SYSTEM
+    assert "output_format" not in call and call["system"] == SYSTEM
     assert call["model"] == "claude-opus-5-5" and call["output_config"] == {"effort": "high"} and "thinking" not in call
     user = call["messages"][0]["content"]
     assert "walk alone" in user and "#ff3366" in user  # lyrics per section and the style plan palette reach the prompt
@@ -105,7 +110,7 @@ def test_regenerate_scene_forces_ref_and_keeps_only_cast_members():
     scene = regenerate_scene(PROJECT, _analysis(), None, PLAN, board, 1, client=client).scene
     assert scene.section_ref == 1 and scene.setting == "forest"
     assert [c.character_id for c in scene.characters] == ["hero"]
-    assert client.calls[0]["output_format"] is LooseRedo and "section 1" in client.calls[0]["messages"][0]["content"]
+    assert "output_format" not in client.calls[0] and "section 1" in client.calls[0]["messages"][0]["content"]
     with pytest.raises(IndexError):
         regenerate_scene(PROJECT, _analysis(), None, PLAN, board, 7, client=client)
 
@@ -129,7 +134,7 @@ def test_generate_and_regenerate_routes(api, monkeypatch):
     assert created.status_code == 200 and len(created.json()["scenes"]) == 3
     assert client.get(f"/projects/{pid}/storyboard").json()["cast"][0]["id"] == "hero"  # persisted
 
-    fake.beta.messages.parse = lambda **kw: SimpleNamespace(parsed_output=LooseRedo(scene=LooseScene.model_validate(_scene(0, "forest", time_of_day="dawn"))), stop_reason="end_turn")
+    fake.beta.messages.create = _reply(LooseRedo(scene=LooseScene.model_validate(_scene(0, "forest", time_of_day="dawn"))))
     regen = client.post(f"/projects/{pid}/storyboard/scenes/1/regenerate")
     assert regen.status_code == 200 and regen.json()["scene"]["section_ref"] == 1 and regen.json()["scene"]["setting"] == "forest" and regen.json()["new_objects"] == []
     saved = {s["section_ref"]: s["setting"] for s in client.get(f"/projects/{pid}/storyboard").json()["scenes"]}
@@ -152,7 +157,7 @@ def test_missing_credentials_is_a_502_not_a_crash(api, monkeypatch):
         raise main.anthropic.CredentialsError("Credentials file not found")
 
     fake = FakeClient(None)
-    fake.beta.messages.parse = no_credentials
+    fake.beta.messages.create = no_credentials
     monkeypatch.setattr(main.anthropic, "Anthropic", lambda **_: fake)
     res = client.post(f"/projects/{pid}/storyboard/generate")
     assert res.status_code == 502 and "Credentials" in res.json()["detail"]
@@ -195,7 +200,7 @@ def test_a_rejected_key_is_a_401(api, monkeypatch):
         raise main.anthropic.AuthenticationError("invalid x-api-key", response=response, body=None)
 
     fake = FakeClient(None)
-    fake.beta.messages.parse = rejected
+    fake.beta.messages.create = rejected
     monkeypatch.setattr(main.anthropic, "Anthropic", lambda **_: fake)
     res = client.post(f"/projects/{pid}/storyboard/generate")
     assert res.status_code == 401 and "rejected your API key" in res.json()["detail"]
@@ -281,7 +286,7 @@ def test_the_redo_route_adds_new_objects_to_the_saved_board(api, monkeypatch):
     monkeypatch.setattr(main.anthropic, "Anthropic", lambda **_: fake)
     client.post(f"/projects/{pid}/storyboard/generate")
     redo = LooseRedo(scene=LooseScene.model_validate({**_scene(1, "shore"), "objects": [{"object_id": "pier"}]}), new_objects=[LooseNewObject(id="pier", name="Pier")])
-    fake.beta.messages.parse = lambda **kw: SimpleNamespace(parsed_output=redo, stop_reason="end_turn")
+    fake.beta.messages.create = _reply(redo)
     res = client.post(f"/projects/{pid}/storyboard/scenes/1/regenerate")
     assert res.status_code == 200 and [o["id"] for o in res.json()["new_objects"]] == ["pier"]
     saved = client.get(f"/projects/{pid}/storyboard").json()
@@ -348,3 +353,68 @@ def test_moods_and_cues_with_wrong_words_are_dropped():
     assert _moods([LooseMood(line=0, expression="Sad"), LooseMood(line=1, expression="smug")], lyrics) == [{"at": 1.0, "expression": "sad"}]
     cues = _cues([LooseCue(line=0, symbol="Heart", holding="bazooka"), LooseCue(line=1, symbol="dragon", holding="rocket")], lyrics)
     assert cues == [{"at": 1.0, "symbol": "heart", "holding": None}]
+
+
+# ---- the storyboard asks for plain JSON, so the API's grammar limit cannot apply
+
+from app.style_plan import _call_json, _drop_nulls, _json_object  # noqa: E402
+
+
+class _TextClient:
+    """A client whose create() answers with the given text."""
+
+    def __init__(self, text, stop_reason="end_turn"):
+        self.calls = []
+        outer = self
+
+        class Messages:
+            def create(self, **kw):
+                outer.calls.append(kw)
+                return SimpleNamespace(content=[SimpleNamespace(type="text", text=text)], stop_reason=stop_reason)
+
+        self.beta = SimpleNamespace(messages=Messages())
+
+
+def test_the_request_has_no_output_schema_and_tells_the_model_the_json_schema_in_the_prompt():
+    client = _TextClient(_draft([_scene(0), _scene(1), _scene(2)]).model_dump_json())
+    generate_storyboard(PROJECT, _analysis(), None, PLAN, client=client)
+    call = client.calls[0]
+    assert "output_format" not in call and "thinking" not in call
+    assert call["model"] == "claude-opus-5-5" and call["fallbacks"] == "default" and call["output_config"] == {"effort": "high"}
+    user = call["messages"][0]["content"]
+    assert "ONLY one JSON object" in user and '"LooseStoryboard"' in user and "no code fence" in user
+    assert call["system"] == SYSTEM
+
+
+@pytest.mark.parametrize(
+    "wrap",
+    [lambda j: j, lambda j: f"```json\n{j}\n```", lambda j: f"Here is the storyboard:\n{j}\nHope that helps!"],
+    ids=["bare", "fenced", "with prose"],
+)
+def test_the_reply_is_found_whether_or_not_it_is_fenced_or_surrounded_by_words(wrap):
+    board = generate_storyboard(PROJECT, _analysis(), None, PLAN, client=_TextClient(wrap(_draft([_scene(0), _scene(1), _scene(2)]).model_dump_json())))
+    assert [s.setting for s in board.scenes] == ["road", "road", "road"]
+
+
+def test_a_field_left_null_takes_its_default_instead_of_failing():
+    assert _drop_nulls({"a": None, "b": [{"c": None, "d": 1}], "e": {"f": None}}) == {"b": [{"d": 1}], "e": {}}
+    text = json.dumps({"cast": [{"id": "hero", "colors": COLORS, "hat": None, "accessories": None}], "scenes": [{"section_ref": 0, "setting": "shore", "characters": [{"character_id": "hero", "expression": None, "holding": None, "wear": None}], "crowd": None}]})
+    board = generate_storyboard(PROJECT, _analysis(), None, PLAN, client=_TextClient(text))
+    assert board.scenes[0].setting == "shore" and board.scenes[0].characters[0].action == "idle"
+
+
+def test_unusable_replies_are_clear_errors_not_crashes():
+    with pytest.raises(StyleError, match="no JSON"):
+        _call_json(_TextClient("I cannot do that, sorry."), "x", LooseStoryboard, "high")
+    with pytest.raises(StyleError, match="not valid JSON"):
+        _call_json(_TextClient('{"cast": [ {"id": } ]}'), "x", LooseStoryboard, "high")
+    with pytest.raises(StyleError, match="cut off"):
+        _call_json(_TextClient('{"cast": [', stop_reason="max_tokens"), "x", LooseStoryboard, "high")
+    with pytest.raises(StyleError, match="declined"):
+        _call_json(_TextClient("", stop_reason="refusal"), "x", LooseStoryboard, "high")
+    with pytest.raises(StyleError, match="invalid answer: 1 validation error"):
+        _call_json(_TextClient('{"scenes": [{"setting": "road"}]}'), "x", LooseStoryboard, "high")  # a scene with no section_ref
+
+
+def test_json_object_takes_the_outermost_braces():
+    assert _json_object('text {"a": {"b": 1}} more') == {"a": {"b": 1}}
