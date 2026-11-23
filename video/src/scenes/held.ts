@@ -38,6 +38,9 @@ export function holdPose(pose: Pose, kind: HeldKind, { t, beat, energy }: HeldCt
       return { ...pose, armR: [42, 20 + 3 * sway] };
     case "cup":
       return { ...pose, armR: [22, 106] };
+    case "sword":
+      // Held upright in front of the chest, the way a prophet or a guard stands with it.
+      return { ...pose, armR: [34 + 1.5 * sway, 70] };
     case "guitar": {
       // The near hand strums across the strings on the beat while the far hand holds the neck.
       const strum = sin(beat * TAU);

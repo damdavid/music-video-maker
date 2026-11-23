@@ -141,7 +141,7 @@ def cues_at(cues: list[dict] | None, t: float) -> dict:
 
 
 SYMBOL_COLOR = {"heart": "#ff6b86", "star": "#ffd84a", "rose": "#e24a66", "key": "#f0c24a", "door": "#d89a64", "moon": "#f4e7a8", "bird": "#5ab4ea", "clock": "#e8e2d0"}
-HELD_COLOR = {"umbrella": "#e8a33d", "suitcase": "#c98f5a", "microphone": "#d4d8e2", "flowers": "#f08aa8", "lantern": "#ffcf7a", "book": "#d96a6a", "guitar": "#d9944a", "phone": "#bfe3ff", "flag": "#e8566a", "balloon": "#e8566a", "cup": "#f1e6d8"}
+HELD_COLOR = {"umbrella": "#e8a33d", "suitcase": "#c98f5a", "microphone": "#d4d8e2", "flowers": "#f08aa8", "lantern": "#ffcf7a", "book": "#d96a6a", "guitar": "#d9944a", "phone": "#bfe3ff", "sword": "#c9d0dc", "flag": "#e8566a", "balloon": "#e8566a", "cup": "#f1e6d8"}
 
 
 def cue_tint(state: dict) -> tuple[str, float] | None:

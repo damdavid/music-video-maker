@@ -153,7 +153,8 @@ export const Figure = ({ pose, colors, hair, outfit, hat, accessories = [], gend
   const r = SEG.headR;
   const dress = outfit === "dress";
   const longSleeves = LONG_SLEEVED.includes(outfit);
-  const legColor = dress && !mono ? c.body : c.bottom;
+  const robe = outfit === "robe";
+  const legColor = (dress || robe) && !mono ? c.body : c.bottom;
   const flip = facing === "left" ? -1 : 1;
   const edge = { stroke: flat ? "none" : ink, strokeWidth: 2 * OW, paintOrder: "stroke", strokeLinejoin: "round" } as const;
 
@@ -243,6 +244,8 @@ export const Figure = ({ pose, colors, hair, outfit, hat, accessories = [], gend
         <Limb parts={[{ a: j.shoulder, ra: R.neck, b: { x: j.head.x - Math.sin((j.headAngle * Math.PI) / 180) * r * 0.55, y: j.head.y + Math.cos((j.headAngle * Math.PI) / 180) * r * 0.55 }, rb: R.neck * 0.95, fill: c.body }]} ink={ink} flat={flat} />
         {dress && <path d={hem(0.165, 0.19)} fill={c.top} {...edge} />}
         {outfit === "coat" && <path d={hem(0.14, 0.23)} fill={c.top} {...edge} />}
+        {robe && <path d={hem(0.2, 0.43)} fill={c.top} {...edge} />}
+        {robe && !flat && <path d={`M ${f(j.hip.x + sway)} ${f(j.hip.y + 0.04)} L ${f(j.hip.x + sway)} ${f(j.hip.y + 0.43)} M ${f(j.hip.x + sway - 0.19)} ${f(j.hip.y + 0.405)} Q ${f(j.hip.x + sway)} ${f(j.hip.y + 0.44)} ${f(j.hip.x + sway + 0.19)} ${f(j.hip.y + 0.405)}`} fill="none" stroke={shade(c.top, -20)} strokeWidth={0.006} strokeLinecap="round" />}
         <path d={torso} fill={top} {...edge} />
         {!flat && <path d={torsoShade} fill={shade(top, -13)} />}
         {!flat && outfit === "hoodie" && (

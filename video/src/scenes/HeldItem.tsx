@@ -141,6 +141,21 @@ export const HeldInHand = ({ kind, j, colors, ink, flat, t, swing }: HandProps) 
         </g>
       );
     }
+    case "sword": {
+      // A sword held point up in the fist, leaning a little forward: a crossguard, a grip, a pommel and a bright blade.
+      const gold = "#d9b24a";
+      const steel = "#d3d9e2";
+      return (
+        <g transform={`translate(${f(H.x)} ${f(H.y)}) rotate(9)`}>
+          <path d="M -0.014 -0.08 L 0.014 -0.08 L 0.011 -0.6 L 0 -0.65 L -0.011 -0.6 Z" fill={steel} {...st} />
+          {!flat && <path d="M -0.003 -0.09 L -0.003 -0.58 L 0.003 -0.58 L 0.003 -0.09 Z" fill={shade(steel, -14)} />}
+          {!flat && <path d="M 0.009 -0.1 L 0.008 -0.58" stroke="#ffffff" strokeWidth={0.003} opacity={0.7} />}
+          <rect x={-0.056} y={-0.092} width={0.112} height={0.016} rx={0.006} fill={gold} {...st} />
+          <rect x={-0.008} y={-0.078} width={0.016} height={0.12} rx={0.004} fill={dark} {...st} />
+          <circle cx={0} cy={0.052} r={0.016} fill={gold} {...st} />
+        </g>
+      );
+    }
     case "balloon": {
       // A string from the hand to a balloon that bobs and sways above it.
       const bob = 0.02 * Math.sin(t * 2.1);

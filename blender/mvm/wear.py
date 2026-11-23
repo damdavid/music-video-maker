@@ -200,6 +200,14 @@ def add_outfit_details(fig, outfit: str, colors: dict) -> None:
         part(f"{n}-tie", spine, "cone", (0, -0.0815 * H, (TORSO_LEN - 0.11) * H), (0.012 * H, 0.004 * H, 0.1 * H), tie, (math.pi, 0, 0))
         for sx in (-1, 1):
             part(f"{n}-lapel", spine, "sphere", (sx * 0.03 * H, -0.075 * H, (TORSO_LEN - 0.075) * H), (0.012 * H, 0.008 * H, 0.06 * H), _mat(fig, "lapel", _shade(top, -22), 0.85), (0, math.radians(sx * 12), math.radians(-sx * 14)))
+    elif outfit == "robe":
+        # A sash knotted at the waist, with its ends hanging; the robe's skirt is the Figure's flared panel.
+        sash = _mat(fig, "sash", colors["accent"], 0.7)
+        part(f"{n}-sash", spine, "torus:0.14", (0, 0, 0.075 * H), (0.1 * H, 0.078 * H, 0.1 * H), sash)
+        part(f"{n}-knot", spine, "sphere", (0.03 * H, -0.078 * H, 0.075 * H), (0.018 * H, 0.01 * H, 0.016 * H), sash)
+        for dx, lean in ((0.02, 4), (0.045, -5)):
+            part(f"{n}-end", spine, "sphere", (dx * H, -0.082 * H, 0.012 * H), (0.011 * H, 0.004 * H, 0.06 * H), sash, (0, math.radians(lean), 0))
+        part(f"{n}-neck", spine, "sphere", (0, -0.062 * H, (TORSO_LEN - 0.05) * H), (0.022 * H, 0.014 * H, 0.05 * H), _mat(fig, "robeneck", _shade(top, -30), 0.85))
     elif outfit == "overalls":
         denim = _mat(fig, "bib", colors["bottom"], 0.85)
         part(f"{n}-bib", spine, "sphere", (0, -0.066 * H, 0.19 * H), (0.075 * H, 0.016 * H, 0.1 * H), denim)
@@ -277,6 +285,15 @@ class Held:
             between(f"{n}-pole", g, (0, 0, -0.1 * H), (0, 0, 0.7 * H), 0.005 * H, dark)
             part(f"{n}-cloth", g, "cube", (-0.15 * H, 0, 0.62 * H), (0.3 * H, 0.003 * H, 0.17 * H), accent)
             part(f"{n}-finial", g, "sphere", (0, 0, 0.71 * H), (0.01 * H,) * 3, _mat(fig, "finial", _shade(c["accent"], 30), 0.4, 0.5))
+        elif kind == "sword":
+            self.tilt = 9.0  # leans a little forward
+            steel = _mat(fig, "steel", "#cfd5de", 0.25, 0.9)
+            gold = _mat(fig, "swordgold", "#d9b24a", 0.35, 0.8)
+            part(f"{n}-blade", g, "cube", (0, 0, 0.37 * H), (0.026 * H, 0.006 * H, 0.62 * H), steel)
+            part(f"{n}-tip", g, "cone", (0, 0, 0.7 * H), (0.013 * H, 0.004 * H, 0.06 * H), steel)
+            part(f"{n}-guard", g, "cube", (0, 0, 0.058 * H), (0.11 * H, 0.016 * H, 0.016 * H), gold)
+            part(f"{n}-grip", g, "cyl", (0, 0, 0.0), (0.008 * H, 0.008 * H, 0.1 * H), dark)
+            part(f"{n}-pommel", g, "sphere", (0, 0, -0.055 * H), (0.016 * H,) * 3, gold)
         elif kind == "balloon":
             between(f"{n}-string", g, (0, 0, 0.0), (0.02 * H, 0, 0.4 * H), 0.0012 * H, _mat(fig, "string", "#20202a", 0.6))
             part(f"{n}-balloon", g, "sphere", (0.02 * H, 0, 0.47 * H), (0.065 * H, 0.065 * H, 0.08 * H), _mat(fig, "balloon", c["accent"], 0.2))
