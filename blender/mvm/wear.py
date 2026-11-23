@@ -139,6 +139,18 @@ def add_hat(fig, hat: str, colors: dict) -> None:
     elif hat == "beret":
         part(f"{n}-body", head, "sphere", (-0.006 * H, 0.0, 0.118 * H), (0.075 * H, 0.09 * H, 0.03 * H), main, (math.radians(-6), 0, math.radians(-8)))
         part(f"{n}-stem", head, "sphere", (-0.012 * H, 0.0, 0.148 * H), (0.007 * H,) * 3, band)
+    elif hat == "helmet":
+        # An ancient crested helmet: a dome that comes down over the back of the head, cheek guards, a nose guard and a plume.
+        part(f"{n}-dome", head, "sphere", (0, 0.006 * H, 0.098 * H), (0.056 * H, 0.072 * H, 0.062 * H), main)
+        part(f"{n}-back", head, "sphere", (0, 0.04 * H, 0.056 * H), (0.05 * H, 0.04 * H, 0.05 * H), main)
+        part(f"{n}-brow", head, "cyl", (0, 0.004 * H, 0.112 * H), (0.058 * H, 0.074 * H, 0.012 * H), band)
+        for sx in (-1, 1):
+            part(f"{n}-cheek", head, "sphere", (sx * 0.05 * H, -0.006 * H, 0.062 * H), (0.008 * H, 0.03 * H, 0.04 * H), main)
+        part(f"{n}-nose", head, "cube", (0, -0.066 * H, 0.09 * H), (0.008 * H, 0.004 * H, 0.05 * H), band)
+        plume = _mat(fig, "plume", colors["top"], 0.85)
+        for k in range(7):
+            u = k / 6
+            part(f"{n}-plume", head, "sphere", (0, (-0.03 + 0.1 * u) * H, (0.168 + 0.03 * math.sin(math.pi * u)) * H), (0.008 * H, 0.018 * H, (0.02 + 0.016 * math.sin(math.pi * u)) * H), plume)
     elif hat == "sun_hat":
         part(f"{n}-brim", head, "cyl", (0, 0.0, 0.106 * H), (0.17 * H, 0.17 * H, 0.004 * H), _mat(fig, "hatbrim", _shade(colors["accent"], 25), 0.8))
         part(f"{n}-crown", head, "sphere", (0, 0.004 * H, 0.112 * H), (0.058 * H, 0.074 * H, 0.05 * H), main)
@@ -200,6 +212,23 @@ def add_outfit_details(fig, outfit: str, colors: dict) -> None:
         part(f"{n}-tie", spine, "cone", (0, -0.0815 * H, (TORSO_LEN - 0.11) * H), (0.012 * H, 0.004 * H, 0.1 * H), tie, (math.pi, 0, 0))
         for sx in (-1, 1):
             part(f"{n}-lapel", spine, "sphere", (sx * 0.03 * H, -0.075 * H, (TORSO_LEN - 0.075) * H), (0.012 * H, 0.008 * H, 0.06 * H), _mat(fig, "lapel", _shade(top, -22), 0.85), (0, math.radians(sx * 12), math.radians(-sx * 14)))
+    elif outfit == "armor":
+        # A bronze cuirass over the chest and belly, a rim at the neck, shoulder guards, bracers, greaves, and a ring of leather strips at the hips.
+        metal = _mat(fig, "armor", colors["accent"], 0.32, 0.85)
+        leather = _mat(fig, "armor-leather", colors["bottom"], 0.8)
+        shoulder_x = SHOULDER_X * fig.gender_scale() * H
+        part(f"{n}-chest", spine, "sphere", (0, -0.008 * H, 0.185 * H), (0.126 * H, 0.09 * H, 0.118 * H), metal)
+        part(f"{n}-belly", spine, "sphere", (0, -0.004 * H, 0.085 * H), (0.108 * H, 0.078 * H, 0.07 * H), metal)
+        part(f"{n}-rim", spine, "torus:0.14", (0, 0.004 * H, (TORSO_LEN - 0.012) * H), (0.058 * H, 0.05 * H, 0.058 * H), metal)
+        part(f"{n}-belt", spine, "torus:0.1", (0, 0, 0.012 * H), (0.114 * H, 0.084 * H, 0.114 * H), leather)
+        for sx in (-1, 1):
+            part(f"{n}-pauldron", spine, "sphere", (sx * shoulder_x, 0, SHOULDER_Z * H), (0.054 * H, 0.054 * H, 0.046 * H), metal)
+        for side in ("L", "R"):
+            part(f"{n}-bracer", fig.elbow[side], "cyl", (0, 0, -0.08 * H), (0.027 * H, 0.027 * H, 0.11 * H), metal)
+            part(f"{n}-greave", fig.knee[side], "cyl", (0, 0, -0.12 * H), (0.035 * H, 0.037 * H, 0.17 * H), metal)
+        for k in range(14):
+            a = math.tau * k / 14
+            part(f"{n}-strip", fig.pelvis, "cube", (0.126 * H * math.cos(a), 0.096 * H * math.sin(a), -0.045 * H), (0.036 * H, 0.006 * H, 0.12 * H), leather, (0, 0, a - math.pi / 2))
     elif outfit == "robe":
         # A sash knotted at the waist, with its ends hanging; the robe's skirt is the Figure's flared panel.
         sash = _mat(fig, "sash", colors["accent"], 0.7)
@@ -285,6 +314,15 @@ class Held:
             between(f"{n}-pole", g, (0, 0, -0.1 * H), (0, 0, 0.7 * H), 0.005 * H, dark)
             part(f"{n}-cloth", g, "cube", (-0.15 * H, 0, 0.62 * H), (0.3 * H, 0.003 * H, 0.17 * H), accent)
             part(f"{n}-finial", g, "sphere", (0, 0, 0.71 * H), (0.01 * H,) * 3, _mat(fig, "finial", _shade(c["accent"], 30), 0.4, 0.5))
+        elif kind == "shield":
+            # Face on to the side of the arm, like a round shield strapped to the forearm.
+            self.tilt = 0.0
+            rim = _mat(fig, "shield-rim", _shade(c["accent"], -35), 0.4, 0.8)
+            part(f"{n}-disc", g, "cyl", (-0.06 * H, 0, 0.0), (0.17 * H, 0.17 * H, 0.014 * H), accent, (0, math.radians(90), 0))
+            torus(f"{n}-rim", g, (-0.066 * H, 0, 0.0), 0.17 * H, 0.012 * H, rim, (0, math.radians(90), 0))
+            part(f"{n}-boss", g, "sphere", (-0.075 * H, 0, 0.0), (0.03 * H, 0.04 * H, 0.04 * H), _mat(fig, "shield-boss", _shade(c["accent"], 30), 0.3, 0.9))
+            for rot in (0.0, math.pi / 2):
+                part(f"{n}-spoke", g, "cube", (-0.0705 * H, 0, 0.0), (0.004 * H, 0.26 * H, 0.016 * H), rim, (rot, 0, 0))
         elif kind == "sword":
             self.tilt = 9.0  # leans a little forward
             steel = _mat(fig, "steel", "#cfd5de", 0.25, 0.9)

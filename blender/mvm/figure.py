@@ -237,7 +237,7 @@ class Figure:
             loft(bm, arm_st, (sx * sx_, 0, z0 + SHOULDER_Z * H), H, lambda i, a=arm_st: 1 if (a[i].z > -0.30 if long_sleeve else a[i].z > -0.10) else 0, arm_w)
             leg_st = body.shaped(body.LEG, self.gender)
             leg_w = W(lambda z, s=side: self._leg_weights(z, s))
-            loft(bm, leg_st, (sx * hx, 0, z0 + HIP_Z * H), H, lambda i: 0 if outfit in ("dress", "robe") else 2, leg_w)
+            loft(bm, leg_st, (sx * hx, 0, z0 + HIP_Z * H), H, lambda i: 0 if outfit in ("dress", "robe", "armor") else 2, leg_w)
         mesh = mesh_obj.data
         bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
         for f in bm.faces:

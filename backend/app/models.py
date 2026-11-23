@@ -27,13 +27,13 @@ Symbol = Literal["heart", "star", "rose", "key", "door", "moon", "bird", "clock"
 Expression = Literal["neutral", "happy", "sad", "surprised", "calm", "determined"]
 Prop = Literal["lamp", "bench", "tree", "house", "suitcase", "campfire", "fence", "signpost"]
 # Things a character carries; the guitar is played with both hands, the rest are held in one.
-Held = Literal["umbrella", "suitcase", "microphone", "flowers", "lantern", "book", "guitar", "phone", "flag", "balloon", "cup", "sword"]
+Held = Literal["umbrella", "suitcase", "microphone", "flowers", "lantern", "book", "guitar", "phone", "flag", "balloon", "cup", "sword", "shield"]
 Placement = Literal["left", "center", "right"]
 ObjectSize = Literal["small", "medium", "large"]
 Hair = Literal["none", "short", "long", "bun", "hat", "hood"]
 Gender = Literal["male", "female"]
-Outfit = Literal["tee", "coat", "dress", "hoodie", "jacket", "suit", "overalls", "robe"]
-Hat = Literal["cowboy", "beanie", "cap", "top_hat", "beret", "sun_hat"]
+Outfit = Literal["tee", "coat", "dress", "hoodie", "jacket", "suit", "overalls", "robe", "armor"]
+Hat = Literal["cowboy", "beanie", "cap", "top_hat", "beret", "sun_hat", "helmet"]
 Accessory = Literal["glasses", "sunglasses", "scarf", "headphones", "backpack"]
 # A colour treatment for a section's whole picture; "none" leaves it as drawn.
 Grade = Literal["none", "warm", "cool", "faded", "noir", "vivid", "dream"]

@@ -35,7 +35,7 @@ export function cuesAt(cues: Storyboard["cues"], t: number): CueState {
 
 /** The colour each symbol and handed-over item gives the lyric line while it is in play. */
 export const SYMBOL_COLOR: Record<SymbolName, string> = { heart: "#ff6b86", star: "#ffd84a", rose: "#e24a66", key: "#f0c24a", door: "#d89a64", moon: "#f4e7a8", bird: "#5ab4ea", clock: "#e8e2d0" };
-export const HELD_COLOR: Record<HeldKind, string> = { umbrella: "#e8a33d", suitcase: "#c98f5a", microphone: "#d4d8e2", flowers: "#f08aa8", lantern: "#ffcf7a", book: "#d96a6a", guitar: "#d9944a", phone: "#bfe3ff", sword: "#c9d0dc", flag: "#e8566a", balloon: "#e8566a", cup: "#f1e6d8" };
+export const HELD_COLOR: Record<HeldKind, string> = { umbrella: "#e8a33d", suitcase: "#c98f5a", microphone: "#d4d8e2", flowers: "#f08aa8", lantern: "#ffcf7a", book: "#d96a6a", guitar: "#d9944a", phone: "#bfe3ff", sword: "#c9d0dc", shield: "#c08a3e", flag: "#e8566a", balloon: "#e8566a", cup: "#f1e6d8" };
 
 /** A soft tint for the lyrics: strong while a symbol is up (in and out over a fraction of a second), gentler while an item is in hand. */
 export function cueTint(state: CueState): { color: string; amount: number } | null {

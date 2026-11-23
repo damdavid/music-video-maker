@@ -340,7 +340,7 @@ def stance_height(p: Pose) -> float:
 # ------------------------------------------------------------------ held items
 
 TWO_HANDED = ("guitar",)
-HELD = ("umbrella", "suitcase", "microphone", "flowers", "lantern", "book", "guitar", "phone", "flag", "balloon", "cup", "sword")
+HELD = ("umbrella", "suitcase", "microphone", "flowers", "lantern", "book", "guitar", "phone", "flag", "balloon", "cup", "sword", "shield")
 
 
 def hold_pose(p: Pose, kind: str, t: float, beat: float, energy: float) -> Pose:
@@ -366,6 +366,8 @@ def hold_pose(p: Pose, kind: str, t: float, beat: float, energy: float) -> Pose:
         return replace(p, arm_r=(42.0, 20 + 3 * sway))
     if kind == "cup":
         return replace(p, arm_r=(22.0, 106.0))
+    if kind == "shield":
+        return replace(p, arm_r=(30 + 1.5 * sway, 80.0))
     if kind == "sword":
         return replace(p, arm_r=(34 + 1.5 * sway, 70.0))
     if kind == "guitar":

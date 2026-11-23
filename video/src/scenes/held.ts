@@ -38,6 +38,9 @@ export function holdPose(pose: Pose, kind: HeldKind, { t, beat, energy }: HeldCt
       return { ...pose, armR: [42, 20 + 3 * sway] };
     case "cup":
       return { ...pose, armR: [22, 106] };
+    case "shield":
+      // The forearm raised across the body, the shield strapped to it and carried a little ahead of the chest.
+      return { ...pose, armR: [30 + 1.5 * sway, 80] };
     case "sword":
       // Held upright in front of the chest, the way a prophet or a guard stands with it.
       return { ...pose, armR: [34 + 1.5 * sway, 70] };

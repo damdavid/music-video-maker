@@ -133,8 +133,8 @@ export type Name = string;
 export type Description = string;
 export type Gender = ("male" | "female") | null;
 export type Hair = "none" | "short" | "long" | "bun" | "hat" | "hood";
-export type Outfit = "tee" | "coat" | "dress" | "hoodie" | "jacket" | "suit" | "overalls" | "robe";
-export type Hat = ("cowboy" | "beanie" | "cap" | "top_hat" | "beret" | "sun_hat") | null;
+export type Outfit = "tee" | "coat" | "dress" | "hoodie" | "jacket" | "suit" | "overalls" | "robe" | "armor";
+export type Hat = ("cowboy" | "beanie" | "cap" | "top_hat" | "beret" | "sun_hat" | "helmet") | null;
 /**
  * @maxItems 2
  */
@@ -184,6 +184,7 @@ export type Holding =
       | "balloon"
       | "cup"
       | "sword"
+      | "shield"
     )
   | null;
 export type At1 = number;
@@ -234,11 +235,12 @@ export type Holding1 =
       | "balloon"
       | "cup"
       | "sword"
+      | "shield"
     )
   | null;
 export type LooksAt = string | null;
-export type Outfit1 = ("tee" | "coat" | "dress" | "hoodie" | "jacket" | "suit" | "overalls" | "robe") | null;
-export type Hat1 = ("cowboy" | "beanie" | "cap" | "top_hat" | "beret" | "sun_hat") | "none" | null;
+export type Outfit1 = ("tee" | "coat" | "dress" | "hoodie" | "jacket" | "suit" | "overalls" | "robe" | "armor") | null;
+export type Hat1 = ("cowboy" | "beanie" | "cap" | "top_hat" | "beret" | "sun_hat" | "helmet") | "none" | null;
 export type Accessories1 = ("glasses" | "sunglasses" | "scarf" | "headphones" | "backpack")[] | null;
 /**
  * Background figures

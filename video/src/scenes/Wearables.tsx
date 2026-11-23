@@ -65,6 +65,21 @@ export const HatShape = ({ hat, colors, ink, flat, r }: HatProps) => {
           {!flat && <path d="M -0.9 -0.85 Q 0 -0.62 1.05 -0.9" stroke={band} strokeWidth={0.06} fill="none" />}
         </g>
       );
+    case "helmet": {
+      // An ancient crested helmet: a dome that comes down over the back of the head, a cheek guard over the ear, a nose guard, and a plume.
+      const crest = colors.top;
+      return (
+        <g {...edge}>
+          <path d="M 0.8 -1.3 C 0.4 -2.2 -0.9 -2.2 -1.4 -0.7 C -0.95 -1.3 -0.2 -1.4 0.25 -1.28 Z" fill={crest} />
+          {!flat && <path d="M 0.5 -1.5 C 0 -2.0 -0.7 -1.95 -1.1 -1.05" fill="none" stroke={shade(crest, 28)} strokeWidth={0.07} strokeLinecap="round" />}
+          <path d="M -1.15 0.65 C -1.45 -0.95 -0.5 -1.6 0.35 -1.48 C 0.98 -1.38 1.14 -0.7 1.08 -0.3 L 0.92 -0.12 Q 0.1 -0.45 -0.48 -0.05 L -0.62 0.78 Q -0.92 0.85 -1.15 0.65 Z" fill={main} />
+          {!flat && <path d="M -0.6 -1.2 Q 0 -1.5 0.6 -1.32" fill="none" stroke={lit} strokeWidth={0.09} strokeLinecap="round" />}
+          {!flat && <path d="M -1.05 -0.35 Q -0.1 -0.55 0.98 -0.35" fill="none" stroke={band} strokeWidth={0.07} />}
+          <path d="M -0.55 0.02 Q -0.1 -0.12 0.14 0.04 L 0.06 0.88 Q -0.25 0.98 -0.5 0.82 Z" fill={main} />
+          <path d="M 0.88 -0.35 L 1.04 -0.35 L 1.16 0.32 L 1.02 0.32 Z" fill={band} />
+        </g>
+      );
+    }
     case "sun_hat":
       return (
         <g {...edge}>
@@ -155,7 +170,7 @@ type DetailProps = { outfit: Outfit; j: Joints; colors: CharacterColors; ink: st
 
 /** What sets the newer outfits apart, drawn over the plain torso: lapels and a tie, a zip and collar, a bib and straps. */
 export const OutfitDetail = ({ outfit, j, colors, ink, flat, torso, id }: DetailProps) => {
-  if (flat || (outfit !== "jacket" && outfit !== "suit" && outfit !== "overalls" && outfit !== "robe")) return null;
+  if (flat || (outfit !== "jacket" && outfit !== "suit" && outfit !== "overalls" && outfit !== "robe" && outfit !== "armor")) return null;
   const s = j.shoulder;
   const L = Math.hypot(j.hip.x - s.x, j.hip.y - s.y) || 1;
   const a = { x: (j.hip.x - s.x) / L, y: (j.hip.y - s.y) / L };
@@ -173,6 +188,24 @@ export const OutfitDetail = ({ outfit, j, colors, ink, flat, torso, id }: Detail
           <path d={`M ${at(0.72, 0.01)} h 0.0 L ${at(0.74, 0.07)}`} />
         </g>
       );
+    case "armor": {
+      // A bronze cuirass: the plate over the chest and belly with the muscles drawn on it, a rim at the neck, and a belt.
+      const metal = colors.accent;
+      const trim = shade(metal, -30);
+      return (
+        <g strokeLinecap="round" strokeLinejoin="round">
+          <path d={`M ${at(0.03, -0.12)} L ${at(0.03, 0.13)} L ${at(0.88, 0.12)} L ${at(0.88, -0.12)} Z`} fill={metal} stroke={trim} strokeWidth={0.006} />
+          <path d={`M ${at(0.06, 0.05)} Q ${at(0.3, 0.075)} ${at(0.34, 0.01)} M ${at(0.06, 0.0)} Q ${at(0.28, 0.0)} ${at(0.34, -0.06)}`} fill="none" stroke={trim} strokeWidth={0.0055} />
+          <path d={`M ${at(0.1, 0.03)} L ${at(0.86, 0.03)}`} fill="none" stroke={trim} strokeWidth={0.005} />
+          {[0.5, 0.62, 0.74].map((u) => (
+            <path key={u} d={`M ${at(u, -0.09)} Q ${at(u + 0.03, 0.0)} ${at(u, 0.1)}`} fill="none" stroke={trim} strokeWidth={0.0045} />
+          ))}
+          <path d={`M ${at(0.05, 0.08)} Q ${at(0.12, 0.02)} ${at(0.05, -0.08)}`} fill="none" stroke={shade(metal, 28)} strokeWidth={0.006} opacity={0.8} />
+          <path d={`M ${at(0.86, -0.13)} L ${at(0.86, 0.14)} L ${at(1.0, 0.14)} L ${at(1.0, -0.13)} Z`} fill={shade(metal, -16)} stroke={trim} strokeWidth={0.005} />
+          <circle cx={s.x + a.x * 0.93 * L + n.x * 0.045} cy={s.y + a.y * 0.93 * L + n.y * 0.045} r={0.006} fill={shade(metal, 36)} />
+        </g>
+      );
+    }
     case "robe":
       return (
         <g strokeLinecap="round" strokeLinejoin="round">
