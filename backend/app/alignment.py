@@ -43,6 +43,11 @@ def _keep_sane(refined, before) -> None:
 
 
 def align(audio: Path, lyrics_text: str, language: str = "en", on_stage: Callable[[str], None] | None = None) -> Lyrics:
+    return align_lines(audio, lyrics_text, language, on_stage)[0]
+
+
+def align_lines(audio: Path, lyrics_text: str, language: str = "en", on_stage: Callable[[str], None] | None = None) -> tuple[Lyrics, list[int]]:
+    """The aligned lyrics, and for each line in them the index of the input line it came from (a line with no words is dropped)."""
     text = "\n".join(line.strip() for line in lyrics_text.splitlines() if line.strip())
     # original_split keeps the user's line breaks as the segment boundaries.
     model = _get_model()
@@ -55,8 +60,8 @@ def align(audio: Path, lyrics_text: str, language: str = "en", on_stage: Callabl
         before = copy.deepcopy(result)
         model.refine(str(audio), result)
         _keep_sane(result, before)
-    lines = []
-    for seg in result.segments:
+    lines, sources = [], []
+    for index, seg in enumerate(result.segments):
         words = [
             Word(start=w.start, end=w.end, text=w.word.strip(), low_confidence=w.probability is not None and w.probability < LOW_CONFIDENCE)
             for w in seg.words
@@ -64,4 +69,5 @@ def align(audio: Path, lyrics_text: str, language: str = "en", on_stage: Callabl
         ]
         if words:
             lines.append(Line(start=words[0].start, end=words[-1].end, text=" ".join(w.text for w in words), words=words))
-    return Lyrics(lines=lines)
+            sources.append(index)
+    return Lyrics(lines=lines), sources

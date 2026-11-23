@@ -297,6 +297,9 @@ export function App() {
         <label className="form-row">
           <span className="field-label">Lyrics</span>
           <textarea rows={6} value={lyrics} onChange={(e) => setLyrics(e.target.value)} />
+          <span className="hint">
+            Put a tag on its own line, like [scene], [scene 1] or [Chorus], to start a new section at the next line. When you run Analysis and alignment, the tags become the song's sections (and carry the old sections' style and scenes over); they are never shown in the video.
+          </span>
         </label>
       </section>
 

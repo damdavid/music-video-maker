@@ -348,6 +348,13 @@ def put_sections(project_id: str, edits: list[SectionEdit]) -> SectionsApplied:
     except ValueError as e:
         raise HTTPException(422, str(e)) from e
 
+    plan, board, descriptions = _remap_to_sections(project_id, edits)
+    _write(project_id, "analysis.json", analysis.model_copy(update={"sections": sections, "sections_edited": True}))
+    return SectionsApplied(sections=sections, section_descriptions=descriptions, plan=plan, storyboard=board)
+
+
+def _remap_to_sections(project_id: str, edits: list[SectionEdit]):
+    """Re-indexes the style plan, storyboard and section descriptions to a new list of sections (each starts from the old one it names)."""
     plan = _optional_plan(project_id)
     if plan:
         plan = section_edits.remap_plan(plan, edits)
@@ -360,8 +367,7 @@ def put_sections(project_id: str, edits: list[SectionEdit]) -> SectionsApplied:
     with _editing(project_id) as project:
         project.section_descriptions = section_edits.remap_descriptions(project.section_descriptions, edits)
         descriptions = project.section_descriptions
-    _write(project_id, "analysis.json", analysis.model_copy(update={"sections": sections, "sections_edited": True}))
-    return SectionsApplied(sections=sections, section_descriptions=descriptions, plan=plan, storyboard=board)
+    return plan, board, descriptions
 
 
 @app.get("/projects/{project_id}/lyrics")
@@ -574,8 +580,11 @@ def start_process(project_id: str) -> ProcessStatus:
     d = _dir(project_id)
 
     def work(job: jobs.ProcessJob) -> None:
-        pipeline.run(d, project, job)
-        _prune_to_sections(project_id)
+        edits = pipeline.run(d, project, job)
+        if edits:  # the lyrics' metatags set the sections, so the plan, scenes and notes follow them
+            _remap_to_sections(project_id, edits)
+        else:
+            _prune_to_sections(project_id)
 
     try:
         job = jobs.start(project_id, work)

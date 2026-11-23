@@ -7,6 +7,7 @@ import anthropic
 import numpy as np
 from pydantic import BaseModel, Field, ValidationError
 
+from app import lyric_tags
 from app.models import (
     VISUAL_PRESETS,
     AnalysisData,
@@ -145,7 +146,7 @@ def _brief(project: Project, analysis: AnalysisData, lyrics: Lyrics | None) -> s
             "bpm": round(analysis.bpm),
             "key": analysis.key,
             "duration_s": round(analysis.duration),
-            "sections": _section_summaries(analysis, lyrics, project.lyrics_text, project.section_descriptions),
+            "sections": _section_summaries(analysis, lyrics, lyric_tags.parse(project.lyrics_text)[0], project.section_descriptions),
         },
         indent=1,
     )
