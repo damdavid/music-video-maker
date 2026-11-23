@@ -230,14 +230,14 @@ class Figure:
         neck = body.shaped(body.NECK, self.gender)
         neck_w = W(lambda z: {"head": body.smoothstep((z - 0.31) / 0.06), "spine": 1 - body.smoothstep((z - 0.31) / 0.06)})
         loft(bm, neck, (0, 0, z0), H, lambda i: 0, neck_w)
-        long_sleeve = outfit in ("hoodie", "coat", "jacket", "suit")
+        long_sleeve = outfit in ("hoodie", "coat", "jacket", "suit", "robe")
         for side, sx in (("L", 1), ("R", -1)):
             arm_st = body.shaped(body.ARM, self.gender)
             arm_w = W(lambda z, s=side: self._arm_weights(z, s))
             loft(bm, arm_st, (sx * sx_, 0, z0 + SHOULDER_Z * H), H, lambda i, a=arm_st: 1 if (a[i].z > -0.30 if long_sleeve else a[i].z > -0.10) else 0, arm_w)
             leg_st = body.shaped(body.LEG, self.gender)
             leg_w = W(lambda z, s=side: self._leg_weights(z, s))
-            loft(bm, leg_st, (sx * hx, 0, z0 + HIP_Z * H), H, lambda i: 0 if outfit == "dress" else 2, leg_w)
+            loft(bm, leg_st, (sx * hx, 0, z0 + HIP_Z * H), H, lambda i: 0 if outfit in ("dress", "robe") else 2, leg_w)
         mesh = mesh_obj.data
         bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
         for f in bm.faces:
@@ -323,9 +323,9 @@ class Figure:
             blob(f"{self.name}-collar", self.spine, (0.075 * H, 0.06 * H, 0.025 * H), (0, 0.005 * H, (TORSO_LEN - 0.005) * H), top)
         # A dress or a long coat: a flared panel hung from the hips, swinging with the legs.
         self.skirt = None
-        if outfit in ("dress", "coat"):
+        if outfit in ("dress", "coat", "robe"):
             bm = bmesh.new()
-            flare = [(0.005, 0.112, 0.082), (-0.05, 0.125, 0.092), (-0.12, 0.15, 0.108), (-0.2, 0.185, 0.13)] if outfit == "dress" else [(0.005, 0.112, 0.082), (-0.08, 0.12, 0.088), (-0.18, 0.13, 0.096), (-0.27, 0.142, 0.104)]
+            flare = [(0.005, 0.112, 0.082), (-0.05, 0.125, 0.092), (-0.12, 0.15, 0.108), (-0.2, 0.185, 0.13)] if outfit == "dress" else [(0.005, 0.112, 0.082), (-0.12, 0.15, 0.1), (-0.26, 0.178, 0.118), (-0.41, 0.2, 0.134)] if outfit == "robe" else [(0.005, 0.112, 0.082), (-0.08, 0.12, 0.088), (-0.18, 0.13, 0.096), (-0.27, 0.142, 0.104)]
             loft(bm, [body.Station(z, rx, ry) for z, rx, ry in flare], (0, 0, 0), H)
             panel = _mesh_object(f"{self.name}-skirt", bm, [top], self.pelvis)
             self.skirt = panel

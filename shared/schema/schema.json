@@ -888,7 +888,8 @@
             "hoodie",
             "jacket",
             "suit",
-            "overalls"
+            "overalls",
+            "robe"
           ],
           "title": "Outfit",
           "type": "string"
@@ -1118,7 +1119,8 @@
                 "phone",
                 "flag",
                 "balloon",
-                "cup"
+                "cup",
+                "sword"
               ],
               "type": "string"
             },
@@ -1377,7 +1379,8 @@
                 "phone",
                 "flag",
                 "balloon",
-                "cup"
+                "cup",
+                "sword"
               ],
               "type": "string"
             },
@@ -1465,7 +1468,8 @@
                 "hoodie",
                 "jacket",
                 "suit",
-                "overalls"
+                "overalls",
+                "robe"
               ],
               "type": "string"
             },

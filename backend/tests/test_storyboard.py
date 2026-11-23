@@ -277,3 +277,10 @@ def test_contact_kinds_are_a_closed_set_and_default_to_none():
         with pytest.raises(ValidationError):
             Storyboard.model_validate(_board(scenes=[{"section_ref": 0, "setting": "road", "characters": [{"character_id": "hero", "contact": {"partner": "x", "kind": bad}}]}]))
     assert Storyboard.model_validate(_board()).scenes[0].characters[0].contact is None
+
+
+def test_the_robe_outfit_and_the_sword_are_part_of_the_vocabulary():
+    board = Storyboard.model_validate(_board(cast=[{"id": "hero", "outfit": "robe", "colors": COLORS}], scenes=[{"section_ref": 0, "setting": "road", "characters": [{"character_id": "hero", "holding": "sword"}]}]))
+    assert board.cast[0].outfit == "robe" and board.scenes[0].characters[0].holding == "sword"
+    worn = Storyboard.model_validate(_board(scenes=[{"section_ref": 0, "setting": "road", "characters": [{"character_id": "hero", "wear": {"outfit": "robe"}}]}]))
+    assert worn.scenes[0].characters[0].wear.outfit == "robe"

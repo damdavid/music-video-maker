@@ -7,7 +7,7 @@ const OW = 0.0065;
 const f = (n: number) => n.toFixed(4);
 
 /** Outfits whose sleeves cover the arms. */
-export const LONG_SLEEVED: readonly Outfit[] = ["coat", "hoodie", "jacket", "suit"];
+export const LONG_SLEEVED: readonly Outfit[] = ["coat", "hoodie", "jacket", "suit", "robe"];
 
 type HatProps = { hat: Hat; colors: CharacterColors; ink: string; flat: boolean; r: number };
 
@@ -155,7 +155,7 @@ type DetailProps = { outfit: Outfit; j: Joints; colors: CharacterColors; ink: st
 
 /** What sets the newer outfits apart, drawn over the plain torso: lapels and a tie, a zip and collar, a bib and straps. */
 export const OutfitDetail = ({ outfit, j, colors, ink, flat, torso, id }: DetailProps) => {
-  if (flat || (outfit !== "jacket" && outfit !== "suit" && outfit !== "overalls")) return null;
+  if (flat || (outfit !== "jacket" && outfit !== "suit" && outfit !== "overalls" && outfit !== "robe")) return null;
   const s = j.shoulder;
   const L = Math.hypot(j.hip.x - s.x, j.hip.y - s.y) || 1;
   const a = { x: (j.hip.x - s.x) / L, y: (j.hip.y - s.y) / L };
@@ -171,6 +171,16 @@ export const OutfitDetail = ({ outfit, j, colors, ink, flat, torso, id }: Detail
           <path d={`M ${at(0.0, 0.03)} L ${at(0.12, 0.062)} L ${at(0.06, 0.07)}`} fill={shade(top, -10)} />
           <path d={`M ${at(0.1, 0.05)} L ${at(1.0, 0.07)}`} />
           <path d={`M ${at(0.72, 0.01)} h 0.0 L ${at(0.74, 0.07)}`} />
+        </g>
+      );
+    case "robe":
+      return (
+        <g strokeLinecap="round" strokeLinejoin="round">
+          {/* The open neckline, the front edge of the cloth, and a sash knotted at the waist with its ends hanging. */}
+          <path d={`M ${at(0.0, 0.03)} L ${at(0.14, 0.012)} L ${at(0.03, -0.03)}`} fill={shade(top, -26)} stroke={dark} strokeWidth={0.005} />
+          <path d={`M ${at(0.12, 0.062)} L ${at(1.0, 0.07)}`} fill="none" stroke={dark} strokeWidth={0.006} />
+          <path d={`M ${at(0.58, -0.1)} L ${at(0.58, 0.1)} L ${at(0.7, 0.1)} L ${at(0.7, -0.1)} Z`} fill={colors.accent} stroke={shade(colors.accent, -30)} strokeWidth={0.005} />
+          <path d={`M ${at(0.66, 0.07)} q 0.012 0.05 0.004 0.12 l 0.026 0 q -0.004 -0.07 -0.006 -0.13 Z`} fill={shade(colors.accent, -14)} stroke={shade(colors.accent, -34)} strokeWidth={0.004} />
         </g>
       );
     case "suit":
