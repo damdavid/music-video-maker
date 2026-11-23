@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { Section, SectionEdit, SectionsApplied } from "../../shared/types";
 import { errorMessage, saveSectionDescriptions, saveSections } from "./api";
 import { useAlive } from "./jobs";
@@ -54,6 +54,13 @@ export function SectionsPanel({ projectId, sections, descriptions, edited, befor
     setDrafts(sections.map((_, i) => descriptions[i] ?? ""));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sections]);
+
+  // A note changed elsewhere (the scene editor) shows up here too, unless it is being edited here.
+  const seen = useRef(descriptions);
+  useEffect(() => {
+    setDrafts((cur) => cur.map((text, i) => (text === (seen.current[i] ?? "") ? (descriptions[i] ?? "") : text)));
+    seen.current = descriptions;
+  }, [descriptions]);
 
   const save = async () => {
     const sent = drafts;

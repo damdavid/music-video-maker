@@ -75,6 +75,11 @@ Canvas
 - Characters stand at x=416, 800 and 1184 on the ground line. Keep those spots open at ground level (no big objects there); put scenery at the edges and in the distance.
 - The picture may be cropped at the sides for tall formats, so keep what matters between x=400 and x=1200.
 
+The creator's direction
+- If "creator_direction" is given it is the MAIN BRIEF for this backdrop, ahead of the setting. Paint what it describes literally and prominently, even where the setting would not normally contain it (a river, a lighthouse, a market, a particular building or landscape).
+- If "must_show" is given, every item on it must be clearly recognisable in the picture, large enough to read at a glance (not a speck in the distance), and placed at the edges or in the distance so the character spots stay open. Spend your element budget on them first, then on the rest.
+- The setting, time of day and weather are the base the direction sits in; when they conflict with the direction, the direction wins.
+
 Content
 - Paint the setting, time of day and mood you are given, with layered flat shapes: gradient sky, a sun or moon where it fits, silhouettes, buildings, hills, trees. Depth comes from layering and color value, not outlines.
 - Draw the listed props. NEVER draw people or animals. Do not draw a seat for a sitting character (the renderer adds a bench).
@@ -146,11 +151,16 @@ def draw_object(client: anthropic.Anthropic, obj: CustomObject, palette: list[st
 
 
 def draw_background(client: anthropic.Anthropic, scene: Scene, palette: list[str], effort: str, direction: str = "") -> str:
-    brief = scene.model_dump(include={"setting", "time_of_day", "weather", "props", "description", "crowd"})
+    # The direction and what it names lead the brief: they are what the creator asked to see.
+    brief: dict = {}
     if direction:
         brief["creator_direction"] = direction
+    if scene.include:
+        brief["must_show"] = scene.include
+    brief.update(scene.model_dump(include={"setting", "time_of_day", "weather", "props", "description", "crowd"}))
     brief["someone_sits"] = any(c.action == "sit" for c in scene.characters)
-    user = f"Paint this backdrop.\n\n{json.dumps(brief, indent=1)}\n\nScene palette (dark to light): {json.dumps(palette)}"
+    lead = "Paint this backdrop. The creator's direction and the things it must show come first: they are the point of the picture.\n\n" if direction or scene.include else "Paint this backdrop.\n\n"
+    user = f"{lead}{json.dumps(brief, indent=1)}\n\nScene palette (dark to light): {json.dumps(palette)}"
     return _draw(client, BACKGROUND_SYSTEM, user, "background", effort)
 
 
@@ -158,7 +168,7 @@ def _load(d: Path) -> Storyboard:
     return Storyboard.model_validate_json((d / "storyboard.json").read_text())
 
 
-def _store(d: Path, task: Task, svg: str) -> None:
+def _store(d: Path, task: Task, svg: str, direction: str = "") -> None:
     """Applies one finished drawing to whatever the storyboard looks like now (the user may have edited it meanwhile)."""
     with board_lock:
         board = _load(d)
@@ -174,6 +184,7 @@ def _store(d: Path, task: Task, svg: str) -> None:
             for s in board.scenes:
                 if s.section_ref == task.key:
                     s.background_svg = svg
+                    s.art_direction = direction[:2000]  # what it was drawn from, so the editor can say when the direction has moved on
         # Attribute assignment skips validation; re-validating sanitizes and size-checks the art before it is stored.
         board = Storyboard.model_validate(board.model_dump())
         write_atomic(d / "storyboard.json", board.model_dump_json())
@@ -198,15 +209,17 @@ def run(
     total = len(tasks)
     job.report(f"drawing 0 of {total}", 0.02)
 
+    def direction_of(task: Task) -> str:
+        descriptions = project.section_descriptions
+        return descriptions[task.key].strip() if task.kind == "scene" and task.key < len(descriptions) else ""
+
     def work(task: Task) -> str:
         if task.kind == "character":
             return draw_character(client, next(c for c in board.cast if c.id == task.key), palette, effort)
         if task.kind == "object":
             return draw_object(client, next(o for o in board.objects if o.id == task.key), palette, effort)
         scene = next(s for s in board.scenes if s.section_ref == task.key)
-        descriptions = project.section_descriptions
-        direction = descriptions[task.key].strip() if task.key < len(descriptions) else ""
-        return draw_background(client, scene, palette, effort, direction)
+        return draw_background(client, scene, palette, effort, direction_of(task))
 
     failures: list[str] = []
     done = 0
@@ -215,7 +228,7 @@ def run(
         for fut in as_completed(futures):
             task = futures[fut]
             try:
-                _store(d, task, fut.result())
+                _store(d, task, fut.result(), direction_of(task))
             except Exception as e:  # one failed drawing must not lose the others; it falls back to the library art
                 failures.append(f"{task.label}: {e}")
             done += 1

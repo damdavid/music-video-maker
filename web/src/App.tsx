@@ -14,6 +14,7 @@ import {
   getProject,
   getStoryboard,
   getStylePlan,
+  saveSectionDescriptions,
   saveStoryboard,
   saveStylePlan,
   listProjects,
@@ -203,6 +204,23 @@ export function App() {
     }
   }
 
+  // A direction typed in the scene editor is the section's note: it shows at once and is saved shortly after typing stops (or on leaving the box).
+  const directionTimer = useRef<number | undefined>(undefined);
+  const latestDirections = useRef<string[]>([]);
+  function setDirection(index: number, text: string, commit = false) {
+    if (!projectId) return;
+    const id = projectId;
+    setSectionDescriptions((prev) => {
+      const next = sections.map((_, k) => (k === index ? text : (prev[k] ?? "")));
+      latestDirections.current = next;
+      return next;
+    });
+    window.clearTimeout(directionTimer.current);
+    const save = () => saveSectionDescriptions(id, latestDirections.current).catch((e) => setStatus(errorMessage(e)));
+    if (commit) void save();
+    else directionTimer.current = window.setTimeout(save, 700);
+  }
+
   async function makePlan() {
     if (!projectId) return;
     const gen = generation.current;
@@ -366,7 +384,7 @@ export function App() {
           </div>
           {planError && <p className="error">Style plan failed: {planError}</p>}
           {plan && <StylePlanEditor projectId={projectId} plan={plan} sections={sections} lyricVideo={settings.lyric_video ?? true} onChange={updatePlan} />}
-          <StoryboardEditor projectId={projectId} board={storyboard} sections={sections} sectionDescriptions={sectionDescriptions} lyrics={lyricsData} onChange={setStoryboard} />
+          <StoryboardEditor projectId={projectId} board={storyboard} sections={sections} sectionDescriptions={sectionDescriptions} onDirection={setDirection} lyrics={lyricsData} onChange={setStoryboard} />
           {inputProps && (
             <Player
               ref={playerRef}

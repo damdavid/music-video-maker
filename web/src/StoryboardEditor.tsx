@@ -18,12 +18,16 @@ const asBoard = (b: EBoard) => b as unknown as Storyboard;
 const savable = (b: EBoard, sections: number) => asBoard({ ...b, scenes: (b.scenes ?? []).filter((s) => s.section_ref < sections) });
 const asEBoard = (b: Storyboard | null) => (b ?? { illustration: "library", cast: [], scenes: [] }) as unknown as EBoard;
 const POLL_MS = 1500;
+/** Whether a section's direction differs from the one a scene (or its backdrop) was made from; a scene with no direction either way is not stale. */
+const directionMoved = (current: string | undefined, used: string | undefined) => (current ?? "").trim() !== (used ?? "").trim();
 
 type Props = {
   projectId: string;
   board: Storyboard | null;
   sections: Section[];
   sectionDescriptions: string[];
+  /** Sets a section's direction (its note); `commit` saves it now rather than after a pause. */
+  onDirection: (index: number, text: string, commit?: boolean) => void;
   /** The aligned lyrics, for setting the lead's expression line by line. */
   lyrics?: Lyrics | null;
   // Takes updaters so async results merge into the latest board instead of the one rendered when they started.
@@ -61,7 +65,7 @@ const mergeArt = (cur: EBoard, fresh: EBoard): EBoard => ({
 
 const svgSrc = (svg: string) => `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
 
-export function StoryboardEditor({ projectId, board, sections, sectionDescriptions, lyrics, onChange }: Props) {
+export function StoryboardEditor({ projectId, board, sections, sectionDescriptions, onDirection, lyrics, onChange }: Props) {
   const [busy, setBusy] = useState<"all" | number | null>(null);
   const [drawing, setDrawing] = useState(false);
   const [art, setArt] = useState<ProcessStatus | null>(null);
@@ -119,6 +123,16 @@ export function StoryboardEditor({ projectId, board, sections, sectionDescriptio
         const wear = { ...(x.wear ?? {}), ...patch };
         return { ...x, wear: wear.outfit == null && wear.hat == null && wear.accessories == null ? null : wear };
       }),
+    });
+  // Redoes one scene from its direction. Persists edits first so the redo is judged against the current storyboard; objects Claude
+  // defines for it join the board (their art is drawn with Draw art).
+  const redoScene = (i: number) =>
+    run(i, async () => {
+      await saveStoryboard(projectId, savable(b, sections.length));
+      const redo = await regenerateScene(projectId, i);
+      setScene(i, redo.scene as unknown as EScene);
+      const made = redo.new_objects ?? [];
+      if (made.length) update((cur) => ({ ...cur, objects: [...(cur.objects ?? []), ...made.filter((o) => !(cur.objects ?? []).some((x) => x.id === o.id))] }));
     });
   const characterLabel = (id: string) => cast.find((c) => c.id === id)?.name?.trim() || id;
   const objectLabel = (id: string) => objects.find((o) => o.id === id)?.name?.trim() || id;
@@ -315,13 +329,7 @@ export function StoryboardEditor({ projectId, board, sections, sectionDescriptio
                           className="btn btn-ghost btn-compact"
                           disabled={working || !board}
                           title={board ? "" : "Generate a storyboard first"}
-                          onClick={() =>
-                            run(i, async () => {
-                              // Persist edits first so the redo is judged against the current storyboard.
-                              await saveStoryboard(projectId, savable(b, sections.length));
-                              setScene(i, (await regenerateScene(projectId, i)) as unknown as EScene);
-                            })
-                          }
+                          onClick={() => redoScene(i)}
                         >
                           {busy === i ? "…" : "Regenerate"}
                         </button>
@@ -331,14 +339,40 @@ export function StoryboardEditor({ projectId, board, sections, sectionDescriptio
                       <tr>
                         <td />
                         <td colSpan={5} style={{ paddingBottom: 14 }}>
-                          {sectionDescriptions[i]?.trim() && <p className="hint" style={{ margin: "0 0 6px" }}>Your direction: {sectionDescriptions[i]}</p>}
-                          <input
+                          <label className="field-label" style={{ display: "block" }}>Your direction for this section</label>
+                          <textarea
+                            rows={2}
                             style={{ width: "100%", boxSizing: "border-box" }}
-                            placeholder="One-line description"
-                            aria-label={`${section.label} description`}
-                            value={s.description ?? ""}
-                            onChange={(e) => setScene(i, { description: e.target.value })}
+                            placeholder="What should this part show? e.g. a river with a stone bridge at dawn, two travellers, a lighthouse far off"
+                            aria-label={`${section.label} direction`}
+                            value={sectionDescriptions[i] ?? ""}
+                            onChange={(e) => onDirection(i, e.target.value)}
+                            onBlur={(e) => onDirection(i, e.target.value, true)}
                           />
+                          {directionMoved(sectionDescriptions[i], s.direction_used) && (
+                            <p className="hint" style={{ margin: "4px 0 0" }}>
+                              This direction has changed since the scene was planned.{" "}
+                              <button className="btn btn-ghost btn-compact" disabled={working || !board} onClick={() => redoScene(i)}>Redo scene from direction</button>
+                            </p>
+                          )}
+                          {s.background_svg && directionMoved(sectionDescriptions[i], s.art_direction) && (
+                            <p className="hint" style={{ margin: "4px 0 0" }}>
+                              This direction has changed since the backdrop was drawn.{" "}
+                              <button className="btn btn-ghost btn-compact" disabled={working || !board} onClick={() => drawArt({ scenes: [i] })}>Redraw backdrop</button>
+                            </p>
+                          )}
+                          {s.description?.trim() && <p className="hint" style={{ margin: "6px 0 0" }}>Claude's plan: {s.description}</p>}
+                          <label className="field-label" style={{ display: "block", marginTop: 6 }} title="Things from your direction the backdrop must show clearly. Redraw the backdrop after changing them.">
+                            Must show in the backdrop{" "}
+                            <input
+                              key={`${i}-${(s.include ?? []).join("|")}`}
+                              style={{ width: "100%", boxSizing: "border-box" }}
+                              placeholder="comma separated, e.g. river, stone bridge"
+                              aria-label={`${section.label} must show`}
+                              defaultValue={(s.include ?? []).join(", ")}
+                              onBlur={(e) => setScene(i, { include: e.target.value.split(",").map((t) => t.trim()).filter(Boolean).slice(0, 6) as Scene["include"] })}
+                            />
+                          </label>
                           <div className="row" style={{ marginTop: 6 }}>
                             <label>
                               Drawing{" "}

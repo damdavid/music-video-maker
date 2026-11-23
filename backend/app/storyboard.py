@@ -16,12 +16,14 @@ from app.models import (
     Hat,
     Held,
     Illustration,
+    ObjectSize,
     Lyrics,
     Outfit,
     Project,
     Prop,
     Scene,
     SceneCharacter,
+    SceneRedo,
     SceneObject,
     Setting,
     Symbol,
@@ -30,13 +32,14 @@ from app.models import (
     TimeOfDay,
     Weather,
 )
-from app.style_plan import _brief, _call, _clamp, _hex
+from app.style_plan import _brief, _call, _clamp, _hex, directions_block
 
 SYSTEM = """You are the storyboard artist for a music video drawn entirely in code as flat, stylized illustration.
 Characters are flat figures with simple faces; emotion comes from expression, posture, action, setting, light and weather.
 Given a song's meaning, mood, structure and lyrics, you design a cast and one scene per song section.
 
 Rules:
+- The creator's directions come first in the request and are the main brief. A section that has one must visibly be about it: choose the setting, time of day, weather, props, objects, characters and action it points to; restate it in the scene's description; list the concrete things it names (a river, a lighthouse, a stone bridge, a market) in the scene's "include", which the backdrop painting must show clearly; and when it names a single object the fixed props do not have, also define it under "new_objects" and place it in the scene with "objects". Do not drop a thing the creator asked for because it is not in the lists below.
 - Choose only from the allowed values; the renderer supports nothing else.
 - Cast: usually ONE protagonist (id like "hero", lowercase letters/digits/underscores). Add a second character only if the song is clearly about two people. Give them a short description, a gender (male or female, to match who they are), a hair style, an outfit, optionally a hat (cowboy, beanie, cap, top_hat, beret, sun_hat, or helmet, an ancient crested warrior's helmet that goes with the armor outfit); the "robe" outfit is a long, belted prophet's robe, for biblical, mythic or visionary characters; "armor" is an ancient warrior's bronze breastplate, shoulder guards, bracers and greaves over a leather strip skirt, for soldiers, gladiators, heroes and epic battles and up to two accessories (glasses, sunglasses, scarf, headphones, backpack) when they say something about who the character is, and five hex colors (body, hair, top, bottom, accent). Pick clothing colors that stand out against the scene palette you are given, and keep the same cast across every scene.
 - One scene per section, in order. Follow the song's arc: settings, time of day and weather should change with the story and the energy, not repeat for every section.
@@ -50,7 +53,7 @@ Rules:
 - "contact" on ONE character of a pair makes them touch: {"partner": the other character's id, "kind": hug, hold_hands, high_five or arm_around}. The renderer stands the two together at the first character's place, facing each other for a hug or high five and side by side for holding hands or an arm round the shoulder, and poses both. Use it for a moment of real closeness or greeting between two characters who are both in the scene; a character can be in only one pair.
 - "wear" on a scene's character changes what they wear in that scene only (outfit, hat as a hat name or "none", accessories as a list): use it when the story passes time or the mood changes, such as a coat in winter, a hat put on for the journey, a suit for a wedding. Leave it out almost everywhere; the cast's own look is the default.
 - "cues" attach to lyric lines (numbered under "lyric_lines") like moods. A cue has a line number and a "symbol" (heart, star, rose, key, door, moon, bird, clock), which pops up beside the lead for a couple of seconds, and/or a "holding" item (as above) the lead takes up from that line until the next cue that holds something. Use a symbol only on a line that names the thing (a heart for love, a door for leaving, a clock for time, a bird for freedom); a few well-placed cues beat many.
-- A section's "user_description" is the creator's direction for that scene; follow it.
+- Everything else in the scene (cast, actions, expressions, props) serves the creator's direction for that section when it has one.
 - Custom objects (listed under "Custom objects", if any) are the creator's own props. Place them in scenes where they fit, by object_id, using only the given ids; never invent ids.
 - Each scene's description is one short line a non-technical reader can follow.
 - Scenes may leave the protagonist out (an empty street, a window) when that serves the song."""
@@ -89,6 +92,7 @@ class LooseScene(BaseModel):
     crowd: int | None = Field(default=None, description="Background figures, 0 to 8; leave out to let the renderer decide")
     props: list[Prop] = Field(default_factory=list, description="At most 4")
     objects: list[SceneObject] = Field(default_factory=list, description="At most 3")
+    include: list[str] = Field(default_factory=list, description="Short phrases for the concrete things from the creator's direction that the backdrop must show clearly, at most 6")
 
 
 class LooseMood(BaseModel):
@@ -102,11 +106,24 @@ class LooseCue(BaseModel):
     holding: Held | None = None
 
 
+class LooseNewObject(BaseModel):
+    id: str = Field(description='Short id of lowercase letters, digits and underscores, like "lighthouse"')
+    name: str = ""
+    description: str = Field(default="", description="What it looks like; given to the artist who draws it")
+    size: ObjectSize = "medium"
+
+
+class LooseRedo(BaseModel):
+    scene: LooseScene
+    new_objects: list[LooseNewObject] = Field(default_factory=list, description="Single objects the creator's direction names that the fixed props and existing objects lack; at most 2")
+
+
 class LooseStoryboard(BaseModel):
     cast: list[LooseCharacter] = Field(default_factory=list, description="Usually one character, at most 6")
     scenes: list[LooseScene] = Field(default_factory=list)
     moods: list[LooseMood] = Field(default_factory=list, description="The lead's expression at chosen lyric lines")
     cues: list[LooseCue] = Field(default_factory=list, description="Symbols and held items at chosen lyric lines")
+    new_objects: list[LooseNewObject] = Field(default_factory=list, description="Single objects the creator's directions name that the fixed props lack; at most 4. Place them in scenes with each scene's objects")
 
 
 MAX_CAST = 6
@@ -151,7 +168,28 @@ def _scene(s: LooseScene, cast_ids: set[str], object_ids: set[str]) -> dict:
         "objects": [o for o in objects if o["object_id"] in object_ids][:3],
         "props": list(dict.fromkeys(s.props))[:4],
         "crowd": None if s.crowd is None else int(_clamp(s.crowd, 0, 8)),
+        "include": list(dict.fromkeys(t[:60] for t in (i.strip() for i in s.include) if t))[:6],
     }
+
+
+MAX_OBJECTS = 8
+
+
+def _new_objects(draft: list[LooseNewObject], taken: set[str]) -> list[dict]:
+    """Objects Claude defined for the creator's directions: ids made safe and unique, and the board's limit respected."""
+    out: list[dict] = []
+    for o in draft:
+        oid = _ident(o.id, "")
+        if not oid or oid in taken or len(taken) + len(out) >= MAX_OBJECTS:
+            continue
+        out.append({"id": oid, "name": o.name.strip()[:60], "description": o.description.strip()[:300], "size": o.size})
+        taken = taken | {oid}
+    return out
+
+
+def _direction(project: Project, ref: int) -> str:
+    notes = project.section_descriptions
+    return notes[ref].strip()[:2000] if 0 <= ref < len(notes) else ""
 
 
 def _cues(draft: list[LooseCue], lyrics: Lyrics | None) -> list[dict]:
@@ -232,17 +270,19 @@ def generate_storyboard(
     illustration: Illustration = "library",
     objects: list[CustomObject] = (),
 ) -> Storyboard:
-    user = f"Design the cast and a scene for every section of this song.\n\n{_context(project, analysis, lyrics, plan, objects)}"
+    user = f"{directions_block(project, analysis)}Design the cast and a scene for every section of this song.\n\n{_context(project, analysis, lyrics, plan, objects)}"
     draft = _call(client, user, LooseStoryboard, project.settings.style_effort, system=SYSTEM)
     cast = _cast(draft.cast)
-    cast_ids, object_ids = {c["id"] for c in cast}, {o.id for o in objects}
+    # Objects Claude made for the creator's directions join the creator's own; their art is drawn with "Draw art".
+    made = _new_objects(draft.new_objects, {o.id for o in objects})
+    cast_ids, object_ids = {c["id"] for c in cast}, {o.id for o in objects} | {o["id"] for o in made}
     # Art is drawn in separate calls, so a fresh storyboard starts without any; the illustration mode carries over.
     board = Storyboard.model_validate(
         {
             "illustration": illustration,
             "cast": cast,
-            "objects": [o.model_dump() for o in objects],
-            "scenes": [_scene(s, cast_ids, object_ids) for s in draft.scenes],
+            "objects": [o.model_dump() for o in objects] + made,
+            "scenes": [{**_scene(s, cast_ids, object_ids), "direction_used": _direction(project, s.section_ref)} for s in draft.scenes],
             "moods": _moods(draft.moods, lyrics),
             "cues": _cues(draft.cues, lyrics),
         }
@@ -258,22 +298,25 @@ def regenerate_scene(
     board: Storyboard,
     index: int,
     client: anthropic.Anthropic,
-) -> Scene:
+) -> SceneRedo:
     if not 0 <= index < len(analysis.sections):
         raise IndexError(index)
     current = board.model_dump()
     user = (
-        f"Here is the song:\n{_context(project, analysis, lyrics, plan, board.objects)}\n\nHere is the current storyboard:\n{json.dumps(current, indent=1)}\n\n"
-        f"Redesign only the scene for section {index} with a fresh take that still fits the story. Use only characters from the existing cast and objects from the existing custom objects. "
+        f"{directions_block(project, analysis, index)}Here is the song:\n{_context(project, analysis, lyrics, plan, board.objects)}\n\nHere is the current storyboard:\n{json.dumps(current, indent=1)}\n\n"
+        f"Redesign only the scene for section {index} with a fresh take that still fits the story. Use only characters from the existing cast, and objects from the existing custom objects or ones you define under new_objects. "
         f"Return it with section_ref={index}."
     )
-    draft = _call(client, user, LooseScene, project.settings.style_effort, system=SYSTEM)
+    draft = _call(client, user, LooseRedo, project.settings.style_effort, system=SYSTEM)
     old = next((s for s in board.scenes if s.section_ref == index), None)
+    made = _new_objects(draft.new_objects[:2], {o.id for o in board.objects})
     # The old backdrop no longer matches the redesigned scene, so it is dropped; the per-scene mode choice is kept.
-    return Scene.model_validate(
+    scene = Scene.model_validate(
         {
-            **_scene(draft, {c.id for c in board.cast}, {o.id for o in board.objects}),
+            **_scene(draft.scene, {c.id for c in board.cast}, {o.id for o in board.objects} | {o["id"] for o in made}),
             "section_ref": index,
             "illustration": old.illustration if old else None,
+            "direction_used": _direction(project, index),
         }
     )
+    return SceneRedo(scene=scene, new_objects=[CustomObject.model_validate(o) for o in made])

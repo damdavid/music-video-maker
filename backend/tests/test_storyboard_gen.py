@@ -6,7 +6,7 @@ import pytest
 
 from app import main
 from app.models import CustomObject, Line, Lyrics, Scene, Storyboard, StylePlan
-from app.storyboard import SYSTEM, LooseScene, LooseStoryboard, _normalize, generate_storyboard, regenerate_scene
+from app.storyboard import SYSTEM, LooseRedo, LooseScene, LooseStoryboard, _normalize, generate_storyboard, regenerate_scene
 from app.style_plan import StyleError
 from tests.client import make_client
 from tests.test_storyboard import COLORS
@@ -87,8 +87,8 @@ def test_out_of_range_values_are_repaired_instead_of_failing_the_storyboard():
 
 def test_regenerated_scene_is_repaired_too():
     board = _board([_scene(0), _scene(1, "city"), _scene(2, "shore")])
-    draft = LooseScene.model_validate({**_scene(1, "forest", chars=("Hero",)), "crowd": 12, "props": ["tree"] * 6})
-    scene = regenerate_scene(PROJECT, _analysis(), None, PLAN, board, 1, client=FakeClient(draft))
+    draft = LooseRedo(scene=LooseScene.model_validate({**_scene(1, "forest", chars=("Hero",)), "crowd": 12, "props": ["tree"] * 6}))
+    scene = regenerate_scene(PROJECT, _analysis(), None, PLAN, board, 1, client=FakeClient(draft)).scene
     assert [c.character_id for c in scene.characters] == ["hero"] and scene.crowd == 8 and scene.props == ["tree"]
 
 
@@ -101,11 +101,11 @@ def test_refusal_and_empty_output_raise():
 
 def test_regenerate_scene_forces_ref_and_keeps_only_cast_members():
     board = _board([_scene(0), _scene(1, "city"), _scene(2, "shore")])
-    client = FakeClient(LooseScene.model_validate(_scene(99, "forest", chars=("hero", "ghost"))))
-    scene = regenerate_scene(PROJECT, _analysis(), None, PLAN, board, 1, client=client)
+    client = FakeClient(LooseRedo(scene=LooseScene.model_validate(_scene(99, "forest", chars=("hero", "ghost")))))
+    scene = regenerate_scene(PROJECT, _analysis(), None, PLAN, board, 1, client=client).scene
     assert scene.section_ref == 1 and scene.setting == "forest"
     assert [c.character_id for c in scene.characters] == ["hero"]
-    assert client.calls[0]["output_format"] is LooseScene and "section 1" in client.calls[0]["messages"][0]["content"]
+    assert client.calls[0]["output_format"] is LooseRedo and "section 1" in client.calls[0]["messages"][0]["content"]
     with pytest.raises(IndexError):
         regenerate_scene(PROJECT, _analysis(), None, PLAN, board, 7, client=client)
 
@@ -129,9 +129,9 @@ def test_generate_and_regenerate_routes(api, monkeypatch):
     assert created.status_code == 200 and len(created.json()["scenes"]) == 3
     assert client.get(f"/projects/{pid}/storyboard").json()["cast"][0]["id"] == "hero"  # persisted
 
-    fake.beta.messages.parse = lambda **kw: SimpleNamespace(parsed_output=LooseScene.model_validate(_scene(0, "forest", time_of_day="dawn")), stop_reason="end_turn")
+    fake.beta.messages.parse = lambda **kw: SimpleNamespace(parsed_output=LooseRedo(scene=LooseScene.model_validate(_scene(0, "forest", time_of_day="dawn"))), stop_reason="end_turn")
     regen = client.post(f"/projects/{pid}/storyboard/scenes/1/regenerate")
-    assert regen.status_code == 200 and regen.json()["section_ref"] == 1 and regen.json()["setting"] == "forest"
+    assert regen.status_code == 200 and regen.json()["scene"]["section_ref"] == 1 and regen.json()["scene"]["setting"] == "forest" and regen.json()["new_objects"] == []
     saved = {s["section_ref"]: s["setting"] for s in client.get(f"/projects/{pid}/storyboard").json()["scenes"]}
     assert saved == {0: "road", 1: "forest", 2: "shore"}  # only section 1 changed
     assert client.post(f"/projects/{pid}/storyboard/scenes/99/regenerate").status_code == 404
@@ -206,3 +206,83 @@ def test_generation_requires_analysis(tmp_path, monkeypatch):
     client = make_client()
     pid = client.post("/projects", files={"audio": ("a.mp3", b"x")}).json()["id"]
     assert client.post(f"/projects/{pid}/storyboard/generate").status_code == 409
+
+
+# ---- the creator's direction is the main brief
+
+from app.models import Project, Section  # noqa: E402
+from app.storyboard import LooseNewObject, _new_objects  # noqa: E402
+from app.style_plan import directions_block  # noqa: E402
+
+
+def _directed(*notes: str) -> Project:
+    return PROJECT.model_copy(update={"section_descriptions": list(notes)})
+
+
+def test_the_directions_block_lists_only_sections_that_have_one_and_can_pick_a_single_section():
+    analysis = _analysis()
+    assert directions_block(PROJECT, analysis) == ""
+    block = directions_block(_directed("a river at dawn", "", "  a lighthouse on a cliff "), analysis)
+    assert block.startswith("The creator's directions for sections") and "Section 0" in block and "a river at dawn" in block
+    assert "Section 1" not in block and "Section 2" in block and "a lighthouse on a cliff" in block
+    one = directions_block(_directed("a river at dawn", "", "a lighthouse"), analysis, only=2)
+    assert one.startswith("The creator's direction for this section") and "river" not in one and "lighthouse" in one
+
+
+def test_generation_puts_the_directions_first_and_the_system_prompt_makes_them_the_main_brief():
+    client = FakeClient(_draft([_scene(0), _scene(1), _scene(2)]))
+    generate_storyboard(_directed("a river with a stone bridge"), _analysis(), None, PLAN, client=client)
+    user = client.calls[0]["messages"][0]["content"]
+    assert user.startswith("The creator's directions for sections") and user.index("stone bridge") < user.index("Design the cast")
+    assert "main brief" in SYSTEM and "include" in SYSTEM and "new_objects" in SYSTEM
+
+
+def test_each_scene_remembers_the_direction_it_was_planned_from():
+    client = FakeClient(_draft([_scene(0), _scene(1), _scene(2)]))
+    board = generate_storyboard(_directed("a river", "", "x" * 3000), _analysis(), None, PLAN, client=client)
+    assert [s.direction_used for s in board.scenes] == ["a river", "", "x" * 2000]
+
+
+def test_things_the_direction_names_are_kept_cleaned_and_limited():
+    draft = _draft([_scene(0, include=[" a river ", "a river", "", "stone bridge", "y" * 100, "a", "b", "c", "d"])])
+    board = generate_storyboard(_directed("river"), _analysis(), None, PLAN, client=FakeClient(draft))
+    assert board.scenes[0].include == ["a river", "stone bridge", "y" * 60, "a", "b", "c"]
+
+
+def test_new_objects_get_safe_unique_ids_and_stay_within_the_boards_limit():
+    made = _new_objects([LooseNewObject(id="Light House!", name=" Lighthouse ", description="tall", size="large"), LooseNewObject(id="light_house"), LooseNewObject(id="kite"), LooseNewObject(id="")], {"kite"})
+    assert made == [{"id": "light_house", "name": "Lighthouse", "description": "tall", "size": "large"}]
+    full = _new_objects([LooseNewObject(id="a"), LooseNewObject(id="b")], {f"o{i}" for i in range(7)})
+    assert [o["id"] for o in full] == ["a"]
+
+
+def test_a_new_object_can_be_placed_in_a_scene_and_joins_the_boards_objects():
+    draft = _draft([_scene(0, objects=[{"object_id": "Lighthouse", "placement": "right"}, {"object_id": "ghost"}])])
+    draft.new_objects = [LooseNewObject(id="lighthouse", name="Lighthouse", description="a tall white tower", size="large")]
+    board = generate_storyboard(_directed("a lighthouse"), _analysis(), None, PLAN, client=FakeClient(draft))
+    assert [o.id for o in board.objects] == ["lighthouse"] and board.objects[0].svg is None  # its art is drawn with Draw art
+    assert [o.object_id for o in board.scenes[0].objects] == ["lighthouse"]
+
+
+def test_redoing_a_scene_leads_with_its_direction_and_can_add_objects():
+    board = _board([_scene(0), _scene(1, "city"), _scene(2, "shore")])
+    draft = LooseRedo(scene=LooseScene.model_validate({**_scene(1, "shore"), "include": ["a pier"], "objects": [{"object_id": "pier"}]}), new_objects=[LooseNewObject(id="pier", name="Pier", description="a wooden pier")])
+    client = FakeClient(draft)
+    redo = regenerate_scene(_directed("", "a wooden pier at sunset"), _analysis(), None, PLAN, board, 1, client=client)
+    user = client.calls[0]["messages"][0]["content"]
+    assert user.startswith("The creator's direction for this section") and "wooden pier at sunset" in user
+    assert redo.scene.direction_used == "a wooden pier at sunset" and redo.scene.include == ["a pier"]
+    assert [o.id for o in redo.new_objects] == ["pier"] and [o.object_id for o in redo.scene.objects] == ["pier"]
+
+
+def test_the_redo_route_adds_new_objects_to_the_saved_board(api, monkeypatch):
+    client, pid, _ = api
+    fake = FakeClient(_draft([_scene(0), _scene(1), _scene(2)]))
+    monkeypatch.setattr(main.anthropic, "Anthropic", lambda **_: fake)
+    client.post(f"/projects/{pid}/storyboard/generate")
+    redo = LooseRedo(scene=LooseScene.model_validate({**_scene(1, "shore"), "objects": [{"object_id": "pier"}]}), new_objects=[LooseNewObject(id="pier", name="Pier")])
+    fake.beta.messages.parse = lambda **kw: SimpleNamespace(parsed_output=redo, stop_reason="end_turn")
+    res = client.post(f"/projects/{pid}/storyboard/scenes/1/regenerate")
+    assert res.status_code == 200 and [o["id"] for o in res.json()["new_objects"]] == ["pier"]
+    saved = client.get(f"/projects/{pid}/storyboard").json()
+    assert [o["id"] for o in saved["objects"]] == ["pier"]

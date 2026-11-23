@@ -273,6 +273,19 @@ export type Props =
 export type Objects = [] | [SceneObject] | [SceneObject, SceneObject] | [SceneObject, SceneObject, SceneObject];
 export type ObjectId = string;
 export type Placement1 = "left" | "center" | "right";
+/**
+ * @maxItems 6
+ */
+export type Include =
+  | []
+  | [string]
+  | [string, string]
+  | [string, string, string]
+  | [string, string, string, string]
+  | [string, string, string, string, string]
+  | [string, string, string, string, string, string];
+export type DirectionUsed = string;
+export type ArtDirection = string;
 export type Illustration = ("library" | "freeform") | null;
 export type BackgroundSvg = string | null;
 export type Illustration1 = "library" | "freeform";
@@ -309,6 +322,7 @@ export type Label1 = string;
 export type FromIndex = number | null;
 export type Sections2 = Section[];
 export type SectionDescriptions1 = string[];
+export type NewObjects = CustomObject[];
 
 export interface Schema {
   [k: string]: unknown;
@@ -579,6 +593,9 @@ export interface Scene {
   crowd?: Crowd;
   props?: Props;
   objects?: Objects;
+  include?: Include;
+  direction_used?: DirectionUsed;
+  art_direction?: ArtDirection;
   illustration?: Illustration;
   background_svg?: BackgroundSvg;
 }
@@ -651,4 +668,14 @@ export interface SectionsApplied {
   section_descriptions: SectionDescriptions1;
   plan?: StylePlan | null;
   storyboard?: Storyboard | null;
+}
+/**
+ * A redone scene, and any objects Claude defined for the creator's direction (their art is drawn with Draw art).
+ *
+ * This interface was referenced by `Schema`'s JSON-Schema
+ * via the `definition` "SceneRedo".
+ */
+export interface SceneRedo {
+  scene: Scene;
+  new_objects?: NewObjects;
 }
