@@ -1,8 +1,10 @@
 import { createElement, type ReactNode } from "react";
-import type { Action } from "../../../shared/types";
+import type { Action, CharacterColors } from "../../../shared/types";
 import { Face, type Mood } from "./face";
 import { ContactShadow } from "./Figure";
-import type { Pose } from "./rig";
+import { GuitarOnBody, HeldInHand } from "./HeldItem";
+import type { HeldKind } from "./normalize";
+import { layout, type Pose, type Pt } from "./rig";
 import { walkNodes, type SafeNode } from "./safeSvg";
 
 export const PARTS = ["head", "torso", "arm_l", "forearm_l", "arm_r", "forearm_r", "leg_l", "shin_l", "leg_r", "shin_r"] as const;
@@ -76,6 +78,33 @@ export function viewBoxOf(art: SafeNode, fallback: [number, number, number, numb
   return parts.length === 4 && parts.every(Number.isFinite) && parts[2] > 0 && parts[3] > 0 ? (parts as [number, number, number, number]) : fallback;
 }
 
+/**
+ * Where a hand is, in figure heights from the ground under the figure (forward +x, up -y), worked out from the
+ * drawing's own shoulder and elbow pivots turned by the arm angles. A drawing with no pivots has no known hand.
+ */
+export function artHand(present: Map<string, SafeNode>, side: "l" | "r", pose: Pose, cx: number, bottom: number, vbH: number): Pt | null {
+  const shoulder = parsePivot(present.get(`arm_${side}`)?.attrs["data-pivot"]);
+  if (!shoulder) return null;
+  const elbow = parsePivot(present.get(`forearm_${side}`)?.attrs["data-pivot"]);
+  const [upperAngle, lowerAngle] = side === "r" ? pose.armR : pose.armL;
+  const turn = (v: Pt, deg: number): Pt => {
+    const a = (deg * Math.PI) / 180;
+    return { x: v.x * Math.cos(a) - v.y * Math.sin(a), y: v.x * Math.sin(a) + v.y * Math.cos(a) };
+  };
+  let hand: Pt;
+  if (!elbow) {
+    // A rigid arm: it hangs about a third of the figure's height from the shoulder.
+    const r = turn({ x: 0, y: 0.31 * vbH }, -upperAngle);
+    hand = { x: shoulder[0] + r.x, y: shoulder[1] + r.y };
+  } else {
+    const upper = { x: elbow[0] - shoulder[0], y: elbow[1] - shoulder[1] };
+    const e = turn(upper, -upperAngle);
+    const f = turn({ x: upper.x * 0.95, y: upper.y * 0.95 }, -(upperAngle + lowerAngle));
+    hand = { x: shoulder[0] + e.x + f.x, y: shoulder[1] + e.y + f.y };
+  }
+  return { x: (hand.x - cx) / vbH, y: (hand.y - bottom) / vbH };
+}
+
 type FigureProps = {
   art: SafeNode;
   uid: string;
@@ -91,6 +120,15 @@ type FigureProps = {
   mood: Mood;
   faceColor: string;
   shadow?: string;
+  /** Something carried (the arms are already posed to hold it): drawn at the drawing's own hand, or hip for a guitar. */
+  held?: HeldKind;
+  /** The character's colours, which the held item is drawn in. */
+  colors?: CharacterColors;
+  /** Degrees the item swings (see HeldInHand). */
+  swing?: number;
+  /** Where the eyes look and how strongly the expression shows (see face.tsx). */
+  look?: { x: number; y: number };
+  strength?: number;
 };
 
 const SEAT_HEIGHT = 0.26; // seat height in figure-heights; matches the library bench
@@ -124,7 +162,7 @@ function nodesById(art: SafeNode): Map<string, SafeNode> {
   return present;
 }
 
-export const FreeformFigure = ({ art, uid, pose, action, t, beat, x, y, size, facing, mood, faceColor, shadow }: FigureProps) => {
+export const FreeformFigure = ({ art, uid, pose, action, t, beat, x, y, size, facing, mood, faceColor, shadow, held, colors, swing = 0, look, strength }: FigureProps) => {
   const [minX, minY, vbW, vbH] = viewBoxOf(art, [0, 0, 100, 200]);
   const present = nodesById(art);
   const hasLimbs = ["arm_l", "arm_r", "leg_l", "leg_r"].some((p) => present.has(p));
@@ -153,11 +191,21 @@ export const FreeformFigure = ({ art, uid, pose, action, t, beat, x, y, size, fa
     if (n.attrs.id !== "head" || n.tag !== "g") return null;
     const spot = parseFace(n.attrs["data-face"]);
     if (!spot) return null;
-    return <Face key="face" mood={mood} cx={spot[0]} cy={spot[1]} r={spot[2]} color={faceColor} t={t} />;
+    return <Face key="face" mood={mood} cx={spot[0]} cy={spot[1]} r={spot[2]} color={faceColor} t={t} look={look} strength={strength} />;
   };
 
   const stretch = pose.stretch ?? 1;
   const squash = stretch === 1 ? "" : ` translate(${cx} ${bottom}) scale(${(1 / Math.sqrt(stretch)).toFixed(4)} ${stretch.toFixed(4)}) translate(${-cx} ${-bottom})`;
+
+  // A held item is drawn with the library rig's joints, moved to where the drawing's own hand (or hip, for a guitar) is.
+  const rig = held && colors ? layout({ ...pose, y: 0 }) : null;
+  let shift: Pt = { x: 0, y: 0 };
+  if (held && rig) {
+    const anchor =
+      held === "guitar" ? (hipPivot ? { x: (hipPivot[0] - cx) / vbH, y: (hipPivot[1] - bottom) / vbH } : null) : artHand(present, "r", pose, cx, bottom, vbH);
+    const own = held === "guitar" ? rig.hip : rig.handR;
+    if (anchor) shift = { x: anchor.x - own.x, y: anchor.y - own.y };
+  }
 
   return (
     <g transform={`translate(${x} ${y}) scale(${flip * s} ${s}) translate(${-cx} ${-bottom})`}>
@@ -168,6 +216,15 @@ export const FreeformFigure = ({ art, uid, pose, action, t, beat, x, y, size, fa
       )}
       <g transform={`translate(0 ${pose.y * vbH + sitDrop}) rotate(${sway.toFixed(2)} ${cx} ${bottom})${squash}`}>
         {art.children.map((c, i) => renderSafe(c, i, `${uid}-`, rotatePart, face))}
+        {held && rig && colors && (
+          <g transform={`translate(${cx} ${bottom}) scale(${vbH}) translate(${shift.x} ${shift.y})`}>
+            {held === "guitar" ? (
+              <GuitarOnBody j={rig} colors={colors} ink={faceColor} flat={false} skin={colors.body} />
+            ) : (
+              <HeldInHand kind={held} j={rig} colors={colors} ink={faceColor} flat={false} t={t} swing={swing} />
+            )}
+          </g>
+        )}
       </g>
     </g>
   );

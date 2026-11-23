@@ -248,7 +248,7 @@ export const SceneLayer = ({ uid, scene, cast, objects, t, width: w, height: h, 
           const x = xOf(i);
           // A character without usable art is drawn with the library rig instead of disappearing.
           return art ? (
-            <FreeformFigure key={`${ch.id}-${i}`} art={art} uid={`${uid}-c${i}`} pose={pose} action={sc.action} t={ft} beat={beat} x={x} y={gy} size={unit * ch.build} facing={facing} mood={sc.expression} faceColor={featureColor(ch.colors.body)} shadow={c.ink} />
+            <FreeformFigure key={`${ch.id}-${i}`} art={art} uid={`${uid}-c${i}`} pose={pose} action={sc.action} t={ft} beat={beat} x={x} y={gy} size={unit * ch.build} facing={facing} mood={i === 0 && leadMood ? leadMood : sc.expression} faceColor={featureColor(ch.colors.body)} shadow={c.ink} held={holding ?? undefined} colors={ch.colors} swing={(pose.armR[0] - 6) * 1.4} look={look} strength={expressStrength} />
           ) : (
             <Figure key={`${ch.id}-${i}`} pose={pose} colors={ch.colors} hair={ch.hair} outfit={worn.outfit} hat={worn.hat ?? undefined} accessories={worn.accessories} gender={ch.gender} rim={light.rim > 0.03 ? { color: mix(c.light, "#ffffff", 0.35), strength: light.rim, id: `${uid}-rim${i}` } : undefined} held={holding ?? undefined} gaze={sc.lookAt === "camera" ? "camera" : undefined} t={ft} x={x} y={gy} size={unit * ch.build} facing={facing} face={{ mood: i === 0 && leadMood ? leadMood : sc.expression, t: ft, open: i === 0 ? mouthOpen(lyrics, t) : 0, strength: expressStrength, look }} shadow={c.ink} />
           );
