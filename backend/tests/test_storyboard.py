@@ -284,3 +284,16 @@ def test_the_robe_outfit_and_the_sword_are_part_of_the_vocabulary():
     assert board.cast[0].outfit == "robe" and board.scenes[0].characters[0].holding == "sword"
     worn = Storyboard.model_validate(_board(scenes=[{"section_ref": 0, "setting": "road", "characters": [{"character_id": "hero", "wear": {"outfit": "robe"}}]}]))
     assert worn.scenes[0].characters[0].wear.outfit == "robe"
+
+
+def test_the_armor_outfit_is_part_of_the_vocabulary():
+    board = Storyboard.model_validate(_board(cast=[{"id": "hero", "outfit": "armor", "colors": COLORS}]))
+    assert board.cast[0].outfit == "armor"
+    worn = Storyboard.model_validate(_board(scenes=[{"section_ref": 0, "setting": "road", "characters": [{"character_id": "hero", "wear": {"outfit": "armor"}}]}]))
+    assert worn.scenes[0].characters[0].wear.outfit == "armor"
+
+
+def test_the_helmet_hat_and_the_shield_are_part_of_the_vocabulary():
+    board = Storyboard.model_validate(_board(cast=[{"id": "hero", "hat": "helmet", "outfit": "armor", "colors": COLORS}], scenes=[{"section_ref": 0, "setting": "road", "characters": [{"character_id": "hero", "holding": "shield", "wear": {"hat": "helmet"}}]}]))
+    assert board.cast[0].hat == "helmet"
+    assert board.scenes[0].characters[0].holding == "shield" and board.scenes[0].characters[0].wear.hat == "helmet"

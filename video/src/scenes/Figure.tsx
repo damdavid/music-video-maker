@@ -154,13 +154,16 @@ export const Figure = ({ pose, colors, hair, outfit, hat, accessories = [], gend
   const dress = outfit === "dress";
   const longSleeves = LONG_SLEEVED.includes(outfit);
   const robe = outfit === "robe";
-  const legColor = (dress || robe) && !mono ? c.body : c.bottom;
+  const armor = outfit === "armor";
+  // Armour is the character's accent colour: bronze, gold or steel as they choose.
+  const metal = c.accent;
+  const legColor = (dress || robe || armor) && !mono ? c.body : c.bottom;
   const flip = facing === "left" ? -1 : 1;
   const edge = { stroke: flat ? "none" : ink, strokeWidth: 2 * OW, paintOrder: "stroke", strokeLinejoin: "round" } as const;
 
   const arm = (elbow: Pt, hand: Pt, inHand: ReactNode = null) => {
     const skin = c.body;
-    const sleeve = c.top;
+    const sleeve = armor ? metal : c.top;
     const cuff = shade(sleeve, -16);
     const parts: Part[] = [
       { a: j.shoulder, ra: R.shoulder, b: elbow, rb: R.elbow, fill: longSleeves ? sleeve : skin },
@@ -170,7 +173,8 @@ export const Figure = ({ pose, colors, hair, outfit, hat, accessories = [], gend
     return (
       <g>
         <Limb parts={parts} ink={ink} flat={flat} />
-        {!longSleeves && <path d={tube(j.shoulder, R.shoulder + 0.006, cap, R.shoulder * 0.93 + 0.006)} fill={sleeve} {...edge} />}
+        {!longSleeves && <path d={tube(j.shoulder, R.shoulder + (armor ? 0.016 : 0.006), cap, R.shoulder * 0.93 + (armor ? 0.014 : 0.006))} fill={sleeve} {...edge} />}
+        {armor && <path d={tube(lerp(elbow, hand, 0.22), R.elbow + 0.007, lerp(elbow, hand, 0.9), R.wrist + 0.006)} fill={metal} {...edge} />}
         {longSleeves && !flat && <path d={tube(lerp(elbow, hand, 0.8), R.wrist + 0.004, hand, R.wrist + 0.003)} fill={cuff} {...edge} />}
         {inHand}
         <Hand elbow={elbow} hand={hand} fill={skin} ink={ink} flat={flat} />
@@ -188,6 +192,7 @@ export const Figure = ({ pose, colors, hair, outfit, hat, accessories = [], gend
         ink={ink}
         flat={flat}
       />
+      {armor && <path d={tube(lerp(knee, ankle, 0.1), R.knee + 0.007, lerp(knee, ankle, 0.84), R.ankle + 0.007)} fill={metal} {...edge} />}
       <Shoe knee={knee} ankle={ankle} lift={-(ankle.y - pose.y)} color={c.accent} ink={ink} flat={flat} />
     </g>
   );
@@ -244,6 +249,8 @@ export const Figure = ({ pose, colors, hair, outfit, hat, accessories = [], gend
         <Limb parts={[{ a: j.shoulder, ra: R.neck, b: { x: j.head.x - Math.sin((j.headAngle * Math.PI) / 180) * r * 0.55, y: j.head.y + Math.cos((j.headAngle * Math.PI) / 180) * r * 0.55 }, rb: R.neck * 0.95, fill: c.body }]} ink={ink} flat={flat} />
         {dress && <path d={hem(0.165, 0.19)} fill={c.top} {...edge} />}
         {outfit === "coat" && <path d={hem(0.14, 0.23)} fill={c.top} {...edge} />}
+        {armor && <path d={hem(0.17, 0.17)} fill={c.bottom} {...edge} />}
+        {armor && !flat && [-3, -2, -1, 0, 1, 2, 3].map((k) => <path key={k} d={`M ${f(j.hip.x + sway * 0.6 + k * 0.03)} ${f(j.hip.y + 0.01)} L ${f(j.hip.x + sway + k * 0.048)} ${f(j.hip.y + 0.165)}`} stroke={shade(c.bottom, -22)} strokeWidth={0.005} strokeLinecap="round" />)}
         {robe && <path d={hem(0.2, 0.43)} fill={c.top} {...edge} />}
         {robe && !flat && <path d={`M ${f(j.hip.x + sway)} ${f(j.hip.y + 0.04)} L ${f(j.hip.x + sway)} ${f(j.hip.y + 0.43)} M ${f(j.hip.x + sway - 0.19)} ${f(j.hip.y + 0.405)} Q ${f(j.hip.x + sway)} ${f(j.hip.y + 0.44)} ${f(j.hip.x + sway + 0.19)} ${f(j.hip.y + 0.405)}`} fill="none" stroke={shade(c.top, -20)} strokeWidth={0.006} strokeLinecap="round" />}
         <path d={torso} fill={top} {...edge} />

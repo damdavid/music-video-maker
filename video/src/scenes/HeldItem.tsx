@@ -141,6 +141,21 @@ export const HeldInHand = ({ kind, j, colors, ink, flat, t, swing }: HandProps) 
         </g>
       );
     }
+    case "shield": {
+      // A round shield seen face on, strapped to the forearm: a rim, a ring, a boss and a bold cross, in the character's metal.
+      const C = { x: H.x + 0.065, y: H.y - 0.02 };
+      const rim = shade(accent, -24);
+      return (
+        <g>
+          <circle cx={C.x} cy={C.y} r={0.17} fill={accent} {...st} />
+          {!flat && <circle cx={C.x} cy={C.y} r={0.146} fill="none" stroke={rim} strokeWidth={0.012} />}
+          {!flat && <path d={`M ${f(C.x - 0.15)} ${f(C.y)} H ${f(C.x + 0.15)} M ${f(C.x)} ${f(C.y - 0.126)} V ${f(C.y + 0.126)}`} stroke={rim} strokeWidth={0.014} strokeLinecap="round" />}
+          {!flat && <path d={`M ${f(C.x - 0.13)} ${f(C.y - 0.09)} A 0.16 0.16 0 0 1 ${f(C.x + 0.02)} ${f(C.y - 0.16)}`} fill="none" stroke="#ffffff" strokeWidth={0.008} opacity={0.5} strokeLinecap="round" />}
+          <circle cx={C.x} cy={C.y} r={0.042} fill={shade(accent, 18)} {...st} />
+          {!flat && <circle cx={C.x - 0.012} cy={C.y - 0.014} r={0.014} fill="#ffffff" opacity={0.55} />}
+        </g>
+      );
+    }
     case "sword": {
       // A sword held point up in the fist, leaning a little forward: a crossguard, a grip, a pommel and a bright blade.
       const gold = "#d9b24a";

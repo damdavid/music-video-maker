@@ -17,8 +17,8 @@ export const ACTIONS = ["idle", "walk", "run", "sit", "wave", "look_up", "reach"
 export const EXPRESSIONS = ["neutral", "happy", "sad", "surprised", "calm", "determined"] as const satisfies readonly NonNullable<Expression>[];
 export const PLACEMENTS = ["left", "center", "right"] as const satisfies readonly Placement[];
 export const HAIRS = ["none", "short", "long", "bun", "hat", "hood"] as const satisfies readonly Hair[];
-export const OUTFITS = ["tee", "coat", "dress", "hoodie", "jacket", "suit", "overalls", "robe"] as const satisfies readonly Outfit[];
-export const HATS = ["cowboy", "beanie", "cap", "top_hat", "beret", "sun_hat"] as const satisfies readonly NonNullable<Character["hat"]>[];
+export const OUTFITS = ["tee", "coat", "dress", "hoodie", "jacket", "suit", "overalls", "robe", "armor"] as const satisfies readonly Outfit[];
+export const HATS = ["cowboy", "beanie", "cap", "top_hat", "beret", "sun_hat", "helmet"] as const satisfies readonly NonNullable<Character["hat"]>[];
 export const ACCESSORIES = ["glasses", "sunglasses", "scarf", "headphones", "backpack"] as const satisfies readonly NonNullable<Character["accessories"]>[number][];
 export const GRADES = ["none", "warm", "cool", "faded", "noir", "vivid", "dream"] as const satisfies readonly NonNullable<StyleSection["grade"]>[];
 /** Pictures that can pop up beside the lead at a lyric line; must match `Symbol` in backend/app/models.py. */
@@ -27,7 +27,7 @@ export const SYMBOLS = ["heart", "star", "rose", "key", "door", "moon", "bird", 
 export const CONTACTS = ["hug", "hold_hands", "high_five", "arm_around"] as const satisfies readonly NonNullable<SceneCharacter["contact"]>["kind"][];
 export const GENDERS = ["male", "female"] as const;
 /** What a character can carry; must match `Held` in backend/app/models.py. */
-export const HELD = ["umbrella", "suitcase", "microphone", "flowers", "lantern", "book", "guitar", "phone", "flag", "balloon", "cup", "sword"] as const satisfies readonly NonNullable<SceneCharacter["holding"]>[];
+export const HELD = ["umbrella", "suitcase", "microphone", "flowers", "lantern", "book", "guitar", "phone", "flag", "balloon", "cup", "sword", "shield"] as const satisfies readonly NonNullable<SceneCharacter["holding"]>[];
 
 /** For characters made before gender was a choice: a guess from hair and outfit, shown in the editor so it can be changed. */
 export const legacyGender = (hair: Hair | undefined, outfit: Outfit | undefined): (typeof GENDERS)[number] =>

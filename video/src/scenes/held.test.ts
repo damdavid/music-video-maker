@@ -6,7 +6,7 @@ import { layout } from "./rig";
 import { resolveScene, type HeldKind } from "./normalize";
 
 const ctx = { t: 1, beat: 2.25, beatLen: 0.5, energy: 0.6, seed: 3, variant: 0 };
-const KINDS: HeldKind[] = ["umbrella", "suitcase", "microphone", "flowers", "lantern", "book", "guitar", "phone", "flag", "balloon", "cup", "sword"];
+const KINDS: HeldKind[] = ["umbrella", "suitcase", "microphone", "flowers", "lantern", "book", "guitar", "phone", "flag", "balloon", "cup", "sword", "shield"];
 
 describe("holdPose", () => {
   it("changes only the arms that hold the item", () => {

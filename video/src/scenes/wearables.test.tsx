@@ -10,10 +10,10 @@ import type { SceneColors } from "./sky";
 
 const COLORS = { body: "#d9a37e", hair: "#2b1d14", top: "#c0392b", bottom: "#1f2a44", accent: "#f1c40f" };
 const ctx = { t: 1, beat: 2.25, beatLen: 0.5, energy: 0.6, seed: 3, variant: 0 };
-const HATS: Hat[] = ["cowboy", "beanie", "cap", "top_hat", "beret", "sun_hat"];
+const HATS: Hat[] = ["cowboy", "beanie", "cap", "top_hat", "beret", "sun_hat", "helmet"];
 const ACCESSORIES: Accessory[] = ["glasses", "sunglasses", "scarf", "headphones", "backpack"];
-const OUTFITS: Outfit[] = ["tee", "coat", "dress", "hoodie", "jacket", "suit", "overalls", "robe"];
-const HELD: HeldKind[] = ["umbrella", "suitcase", "microphone", "flowers", "lantern", "book", "guitar", "phone", "flag", "balloon", "cup", "sword"];
+const OUTFITS: Outfit[] = ["tee", "coat", "dress", "hoodie", "jacket", "suit", "overalls", "robe", "armor"];
+const HELD: HeldKind[] = ["umbrella", "suitcase", "microphone", "flowers", "lantern", "book", "guitar", "phone", "flag", "balloon", "cup", "sword", "shield"];
 
 const draw = (over: Partial<Parameters<typeof Figure>[0]> = {}) =>
   renderToStaticMarkup(
