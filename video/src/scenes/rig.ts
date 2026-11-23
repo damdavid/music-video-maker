@@ -67,3 +67,19 @@ export function layout(pose: Pose): Joints {
 
   return { hip, shoulder, head, headAngle, elbowL, handL, elbowR, handR, kneeL: shift(kneeL0), ankleL: shift(ankleL0), kneeR: shift(kneeR0), ankleR: shift(ankleR0) };
 }
+
+/**
+ * Two-bone IK for an arm: the [upper, lower] angles that put the hand at (dx, dy) from the shoulder (dx forward, dy
+ * down, in figure heights), with the elbow dropped below the line to the hand. A target out of reach is reached for
+ * as far as the arm goes.
+ */
+export function armTo(dx: number, dy: number): Limb {
+  const U = SEG.upperArm;
+  const F = SEG.foreArm;
+  const d = Math.min(Math.max(Math.hypot(dx, dy), 0.04), (U + F) * 0.9999);
+  const toHand = Math.atan2(dx, dy);
+  const atShoulder = Math.acos(Math.min(1, Math.max(-1, (U * U + d * d - F * F) / (2 * U * d))));
+  const atHand = Math.acos(Math.min(1, Math.max(-1, (F * F + d * d - U * U) / (2 * F * d))));
+  const deg = (r: number) => (r * 180) / Math.PI;
+  return [deg(toHand - atShoulder), deg(atShoulder + atHand)];
+}

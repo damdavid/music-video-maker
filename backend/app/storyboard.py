@@ -47,6 +47,7 @@ Rules:
 - A character can hold something ("holding": umbrella, suitcase, microphone, flowers, lantern, book, phone, flag, balloon, cup, or guitar, which is played with both hands). Give an item only when the moment calls for it: a microphone or guitar for a singer, an umbrella in rain, a suitcase for leaving, flowers or a lantern for tenderness or hope, a book for reflection. Most scenes need none.
 - With more than one character, "looks_at" says who a character looks at: another character's id (they turn to face each other) or "camera" for an address to the viewer. Use it where the two are connected in that moment; leave it out otherwise.
 - "moods" follow the lyrics: the lyric lines are numbered under "lyric_lines". Add an entry (the line number and an expression) at a line where the feeling turns or lands: a sad line, a surprise, a moment of determination or calm. A mood lasts until the next one, so a few well-placed entries beat one per line; the scene's own expression is used wherever there is none.
+- "contact" on ONE character of a pair makes them touch: {"partner": the other character's id, "kind": hug, hold_hands, high_five or arm_around}. The renderer stands the two together at the first character's place, facing each other for a hug or high five and side by side for holding hands or an arm round the shoulder, and poses both. Use it for a moment of real closeness or greeting between two characters who are both in the scene; a character can be in only one pair.
 - "wear" on a scene's character changes what they wear in that scene only (outfit, hat as a hat name or "none", accessories as a list): use it when the story passes time or the mood changes, such as a coat in winter, a hat put on for the journey, a suit for a wedding. Leave it out almost everywhere; the cast's own look is the default.
 - "cues" attach to lyric lines (numbered under "lyric_lines") like moods. A cue has a line number and a "symbol" (heart, star, rose, key, door, moon, bird, clock), which pops up beside the lead for a couple of seconds, and/or a "holding" item (as above) the lead takes up from that line until the next cue that holds something. Use a symbol only on a line that names the thing (a heart for love, a door for leaving, a clock for time, a bird for freedom); a few well-placed cues beat many.
 - A section's "user_description" is the creator's direction for that scene; follow it.
@@ -135,6 +136,14 @@ def _scene(s: LooseScene, cast_ids: set[str], object_ids: set[str]) -> dict:
         # A gaze must land on someone else who is in the scene, or the camera.
         target = c["looks_at"] and (c["looks_at"] if c["looks_at"] == "camera" else _ident(c["looks_at"]))
         c["looks_at"] = target if target == "camera" or (target in here and target != c["character_id"]) else None
+    # A contact must name another character in the scene, and a character can be in only one pair.
+    paired: set[str] = set()
+    for c in characters:
+        partner = c["contact"] and _ident(c["contact"]["partner"])
+        ok = partner and partner in here and partner != c["character_id"] and not {c["character_id"], partner} & paired
+        c["contact"] = {"partner": partner, "kind": c["contact"]["kind"]} if ok else None
+        if ok:
+            paired |= {c["character_id"], partner}
     objects = [{**o.model_dump(), "object_id": _ident(o.object_id)} for o in s.objects]
     return {
         **s.model_dump(include={"section_ref", "description", "setting", "time_of_day", "weather"}),

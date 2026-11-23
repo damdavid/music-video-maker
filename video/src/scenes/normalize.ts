@@ -14,13 +14,15 @@ export type Placement = "left" | "center" | "right";
 /** What a character wears in one scene in place of their usual look; null fields keep the cast's own. */
 export type ResolvedWear = { outfit: Outfit | null; hat: Hat | "none" | null; accessories: Accessory[] | null };
 
+export type ContactKind = NonNullable<NonNullable<SceneCharacter["contact"]>["kind"]>;
+
 export type ObjectSize = NonNullable<CustomObject["size"]>;
 
 export type Illustration = "library" | "freeform";
 export type ResolvedObject = { id: string; size: ObjectSize; svg: string | null };
 export type ResolvedSceneObject = { object_id: string; placement: Placement };
 export type ResolvedCharacter = { id: string; gender: Gender; hair: Hair; outfit: Outfit; hat: Hat | null; accessories: Accessory[]; build: number; colors: CharacterColors; svg: string | null };
-export type ResolvedSceneCharacter = { character_id: string; action: Action; expression: Mood; placement: Placement; facing: "left" | "right"; holding: HeldKind | null; lookAt: string | null; wear: ResolvedWear | null };
+export type ResolvedSceneCharacter = { character_id: string; action: Action; expression: Mood; placement: Placement; facing: "left" | "right"; holding: HeldKind | null; lookAt: string | null; wear: ResolvedWear | null; contact: { partner: string; kind: ContactKind } | null };
 export type ResolvedScene = {
   setting: Setting;
   time_of_day: TimeOfDay;
@@ -58,7 +60,7 @@ export const resolveScene = (s: Scene, boardDefault: Illustration = "library"): 
   weather: s.weather ?? "clear",
   characters: (s.characters ?? []).map((c) => {
     const action = c.action ?? "idle";
-    return { character_id: c.character_id, action, expression: c.expression ?? defaultExpression(action), placement: c.placement ?? "center", facing: c.facing ?? "right", holding: c.holding ?? null, lookAt: c.looks_at ?? null, wear: c.wear ? { outfit: c.wear.outfit ?? null, hat: c.wear.hat ?? null, accessories: c.wear.accessories ? [...c.wear.accessories] : null } : null };
+    return { character_id: c.character_id, action, expression: c.expression ?? defaultExpression(action), placement: c.placement ?? "center", facing: c.facing ?? "right", holding: c.holding ?? null, lookAt: c.looks_at ?? null, wear: c.wear ? { outfit: c.wear.outfit ?? null, hat: c.wear.hat ?? null, accessories: c.wear.accessories ? [...c.wear.accessories] : null } : null, contact: c.contact ? { partner: c.contact.partner, kind: c.contact.kind } : null };
   }),
   crowd: s.crowd ?? null,
   props: s.props ?? [],

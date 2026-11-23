@@ -13,6 +13,7 @@ import type { Mood } from "./face";
 import type { CueState } from "./cues";
 import { eyeLook } from "./gaze";
 import { weatherMood } from "./weatherMusic";
+import { sceneryMood } from "./scenery";
 import { SymbolArt } from "./Symbols";
 import { holdPose } from "./held";
 import { Background, bleedOf } from "./backgrounds";
@@ -22,7 +23,8 @@ import { mouthOpen } from "./lip";
 import { Figure } from "./Figure";
 import { FreeformBackground, FreeformFigure } from "./freeform";
 import { ObjectArt } from "./objects";
-import { facings, objectPlacements, PLACEMENT_X, propPlacements } from "./layout";
+import { contactPoses, type Body } from "./contact";
+import { facings, faceToFace, objectPlacements, pairings, PLACEMENT_X, propPlacements } from "./layout";
 import { dressed, type ResolvedCharacter, type ResolvedObject, type ResolvedScene } from "./normalize";
 import { PropShape } from "./props";
 import { parseSafeSvgCached } from "./safeSvg";
@@ -73,7 +75,7 @@ const wrapX = (x: number, w: number, margin: number) => {
   return ((((x + margin) % span) + span) % span) - margin;
 };
 
-export const SceneLayer = ({ uid, scene, cast, objects, t, width: w, height: h, analysis, palette, seed, showSky, cam, lyrics, framing, enterAt, sectionProgress = 0, intensity = 0.5, autoCrowd = true, leadMood = null, expressStrength = 1, cues = { symbol: null, holding: null } }: Props) => {
+export const SceneLayer = ({ uid, scene, cast, objects, t, width: w, height: h, analysis, palette, seed, showSky, cam, lyrics, framing, enterAt, sectionProgress = 0, intensity = 0.5, autoCrowd = true, leadMood = null, expressStrength = 1, cues = { symbol: null, holding: null, holdAge: null } }: Props) => {
   // The light slowly moves on toward the next time of day over the section.
   const c = driftColors(palette, scene.time_of_day, sectionProgress);
   const portrait = h > w;
@@ -88,6 +90,7 @@ export const SceneLayer = ({ uid, scene, cast, objects, t, width: w, height: h, 
   const beat = beatPhase(analysis.beats, t, analysis.bpm);
   const pulse = beatPulse(analysis.beats, t);
   const wind = Math.min(1, WIND[scene.weather] + 0.25 * energy);
+  const scenery = sceneryMood(energy, smoothed(analysis, "onset_strength", t), pulse);
   // The music's own light: a lift on each beat (more on a downbeat), a flare when something hits hard, and a rim on the cast.
   const light = lightingAt(scene.time_of_day, pulse, beatPulse(analysis.downbeats, t, 0.35), smoothed(analysis, "onset_strength", t), energy);
   const sun = celestialPos(scene.time_of_day, w, hz);
@@ -97,7 +100,7 @@ export const SceneLayer = ({ uid, scene, cast, objects, t, width: w, height: h, 
   const faces = facings(scene);
   const members = scene.characters.flatMap((sc, k) => {
     const ch = cast.find((x) => x.id === sc.character_id);
-    return ch ? [{ sc, ch, facing: faces[k] }] : [];
+    return ch ? [{ sc, ch, facing: faces[k], k }] : [];
   });
   const lead = members[0];
   // The world scrolls past a walking lead at exactly their stride, so planted feet don't slide on the ground.
@@ -126,14 +129,34 @@ export const SceneLayer = ({ uid, scene, cast, objects, t, width: w, height: h, 
   }, [crowdCount, seed, w]);
 
   // Each figure's pose, which a figure looking at another also needs (their eyes follow the other's jumps).
-  const poseOf = (i: number) => {
-    const { sc } = members[i];
+  // Pairs the storyboard has touching, re-indexed to this list of members (a partner missing from the cast is no pair).
+  const pairs = pairings(scene);
+  const pairOf = members.map(({ k }) => {
+    const p = pairs[k];
+    const partner = p ? members.findIndex((m) => m.k === p.partner) : -1;
+    return p && partner >= 0 ? { ...p, partner } : null;
+  });
+  // Where each figure stands: its own place, or its spot in a touching pair.
+  const xOf = (i: number) => (pairOf[i] ? pairOf[i]!.x * w + pairOf[i]!.dx * unit : PLACEMENT_X[members[i].sc.placement] * w);
+  const base = members.map(({ sc }, i) => {
     const ft = t + i * 0.43;
     const acting = enterAt === undefined ? poseFor(sc.action, ctx(ft, i)) : poseWithEntrance(sc.action, ctx(ft, i), t - enterAt - i * ENTER_STAGGER);
     // What they hold takes over the arms it needs; the other arm keeps doing what the action does. A lyric cue hands the lead something.
     const holding = i === 0 && cues.holding ? cues.holding : sc.holding;
     return { ft, holding, pose: holding ? holdPose(acting, holding, { t: ft, beat, energy }) : acting };
-  };
+  });
+  // Touching pairs then lean together and have an arm solved so their hands meet.
+  const bodies: Body[] = members.map(({ ch, facing }, i) => ({ pose: base[i].pose, x: xOf(i), y: gy, size: unit * ch.build, flip: facing === "left" ? -1 : 1 }));
+  const finals = contactPoses(pairOf, bodies);
+  const poseOf = (i: number) => ({ ...base[i], pose: finals[i] });
+  // Face to face, the partner is drawn first so the first figure's arm goes round them; side by side, the first is drawn first.
+  const rank = members.map((_, i) => {
+    const p = pairOf[i];
+    if (!p) return i;
+    const lo = Math.min(i, p.partner);
+    return lo + ((p.role === "a") === faceToFace(p.kind) ? 0.2 : 0);
+  });
+  const order = members.map((_, i) => i).sort((a, b) => rank[a] - rank[b]);
 
   return (
     <svg width={w} height={h} style={{ position: "absolute", inset: 0 }}>
@@ -150,7 +173,7 @@ export const SceneLayer = ({ uid, scene, cast, objects, t, width: w, height: h, 
               <Sky uid={uid} w={w} h={h} hz={hz} t={t} c={c} seed={seed} bleed={bleed} />
             </g>
           )}
-          <Background uid={uid} setting={scene.setting} w={w} h={h} gy={gy} hz={hz} t={t} travel={travel} c={c} seed={seed} layer={layer} bar={Math.floor(beat / 4)} wind={wind} />
+          <Background uid={uid} setting={scene.setting} w={w} h={h} gy={gy} hz={hz} t={t} travel={travel} c={c} seed={seed} layer={layer} bar={Math.floor(beat / 4)} wind={wind} mood={scenery} />
         </>
       )}
 
@@ -203,7 +226,8 @@ export const SceneLayer = ({ uid, scene, cast, objects, t, width: w, height: h, 
               c={c}
               t={t}
               pulse={pulse}
-              sway={wobble(seed, t + i * 1.7, 40, 0.3) * (0.8 + 2.5 * wind)}
+              sway={wobble(seed, t + i * 1.7, 40, 0.3) * (0.8 + 2.5 * wind) + 5 * scenery.gust}
+              mood={scenery}
             />
           ))}
 
@@ -212,13 +236,16 @@ export const SceneLayer = ({ uid, scene, cast, objects, t, width: w, height: h, 
           return art ? <ObjectArt key={`${o.id}-${i}`} art={art} uid={`${uid}-o${i}`} x={wrapX(o.x * w - travel, w, unit * o.scale)} y={gy} size={unit * o.scale} /> : null;
         })}
 
-        {members.map(({ sc, ch, facing }, i) => {
+        {order.map((i) => {
+          const { sc, ch, facing } = members[i];
           const { ft, holding, pose } = poseOf(i);
           const worn = dressed(ch, sc.wear);
-          const at = sc.lookAt && sc.lookAt !== "camera" ? members.findIndex((m) => m.ch.id === sc.lookAt) : -1;
+          // Looking at who they look at, or at the one they are touching (face to face, or with an arm round them).
+          const partner = pairOf[i] && (faceToFace(pairOf[i]!.kind) || pairOf[i]!.kind === "arm_around") ? pairOf[i]!.partner : -1;
+          const at = sc.lookAt && sc.lookAt !== "camera" ? members.findIndex((m) => m.ch.id === sc.lookAt) : partner;
           const look = eyeLook({ t: ft, seed, variant: i, action: sc.action, camera: sc.lookAt === "camera", y: pose.y, target: at >= 0 ? { y: poseOf(at).pose.y } : undefined });
           const art = scene.illustration === "freeform" && ch.svg ? parseSafeSvgCached(ch.svg) : null;
-          const x = PLACEMENT_X[sc.placement] * w;
+          const x = xOf(i);
           // A character without usable art is drawn with the library rig instead of disappearing.
           return art ? (
             <FreeformFigure key={`${ch.id}-${i}`} art={art} uid={`${uid}-c${i}`} pose={pose} action={sc.action} t={ft} beat={beat} x={x} y={gy} size={unit * ch.build} facing={facing} mood={sc.expression} faceColor={featureColor(ch.colors.body)} shadow={c.ink} />
@@ -229,7 +256,7 @@ export const SceneLayer = ({ uid, scene, cast, objects, t, width: w, height: h, 
 
         {cues.symbol && lead && (
           // Beside the lead's head, on the side they face.
-          <SymbolArt name={cues.symbol.name} age={cues.symbol.age} x={PLACEMENT_X[lead.sc.placement] * w + (lead.facing === "right" ? 1 : -1) * leadSize * 0.3} y={gy - leadSize * (lead.sc.action === "sit" ? 0.82 : 1.12)} size={leadSize * 0.26} ink={c.ink} t={t} />
+          <SymbolArt name={cues.symbol.name} age={cues.symbol.age} x={xOf(0) + (lead.facing === "right" ? 1 : -1) * leadSize * 0.3} y={gy - leadSize * (lead.sc.action === "sit" ? 0.82 : 1.12)} size={leadSize * 0.26} ink={c.ink} t={t} />
         )}
       </g>
 

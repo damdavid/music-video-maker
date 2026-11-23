@@ -998,6 +998,32 @@
       "title": "CharacterColors",
       "type": "object"
     },
+    "Contact": {
+      "description": "Two characters touching: the renderer stands the pair together and poses both so their hands meet.",
+      "properties": {
+        "partner": {
+          "description": "Another character's id in the scene",
+          "title": "Partner",
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "hug",
+            "hold_hands",
+            "high_five",
+            "arm_around"
+          ],
+          "title": "Kind",
+          "type": "string"
+        }
+      },
+      "required": [
+        "partner",
+        "kind"
+      ],
+      "title": "Contact",
+      "type": "object"
+    },
     "CustomObject": {
       "properties": {
         "id": {
@@ -1378,6 +1404,17 @@
           "anyOf": [
             {
               "$ref": "#/$defs/Wear"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "contact": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Contact"
             },
             {
               "type": "null"

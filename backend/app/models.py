@@ -221,6 +221,16 @@ class SceneObject(BaseModel):
     placement: Placement = "right"
 
 
+ContactKind = Literal["hug", "hold_hands", "high_five", "arm_around"]
+
+
+class Contact(BaseModel):
+    """Two characters touching: the renderer stands the pair together and poses both so their hands meet."""
+
+    partner: str = Field(description="Another character's id in the scene")
+    kind: ContactKind
+
+
 class Wear(BaseModel):
     """What a character wears in one scene instead of their usual look; a field left out keeps the cast's own."""
 
@@ -247,6 +257,8 @@ class SceneCharacter(BaseModel):
     # Who this character looks at: another character's id in the scene (and turns to face), or "camera".
     looks_at: str | None = None
     wear: Wear | None = None
+    # Set on one of the pair; the partner needs nothing.
+    contact: Contact | None = None
 
 
 class Character(CharacterDraft):

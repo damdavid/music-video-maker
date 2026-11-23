@@ -250,3 +250,30 @@ def test_a_storyboard_saved_before_cues_still_loads():
     board = Storyboard.model_validate(_board(cues=[{"at": 2.0, "symbol": "bird"}]))
     assert board.cues[0].symbol == "bird" and board.cues[0].holding is None
     assert Storyboard.model_validate(_board()).cues == []
+
+
+def test_a_contact_must_name_another_character_in_the_scene_and_a_character_joins_one_pair():
+    from app.models import Contact, SceneCharacter
+    from app.storyboard import LooseScene, _scene
+
+    def contacts(*chars):
+        out = _scene(LooseScene(section_ref=0, setting="road", characters=list(chars)), {"a", "b", "c"}, set())["characters"]
+        return [(c["character_id"], c["contact"]) for c in out]
+
+    pair = contacts(SceneCharacter(character_id="a", contact=Contact(partner="B", kind="hug")), SceneCharacter(character_id="b"))
+    assert pair == [("a", {"partner": "b", "kind": "hug"}), ("b", None)]  # "B" still finds "b"
+    assert contacts(SceneCharacter(character_id="a", contact=Contact(partner="ghost", kind="hug")), SceneCharacter(character_id="b"))[0][1] is None
+    assert contacts(SceneCharacter(character_id="a", contact=Contact(partner="a", kind="hug")))[0][1] is None
+    triple = contacts(
+        SceneCharacter(character_id="a", contact=Contact(partner="b", kind="hold_hands")),
+        SceneCharacter(character_id="b"),
+        SceneCharacter(character_id="c", contact=Contact(partner="b", kind="hug")),
+    )
+    assert triple[0][1] is not None and triple[2][1] is None  # b is already taken
+
+
+def test_contact_kinds_are_a_closed_set_and_default_to_none():
+    for bad in ("kiss", ""):
+        with pytest.raises(ValidationError):
+            Storyboard.model_validate(_board(scenes=[{"section_ref": 0, "setting": "road", "characters": [{"character_id": "hero", "contact": {"partner": "x", "kind": bad}}]}]))
+    assert Storyboard.model_validate(_board()).scenes[0].characters[0].contact is None

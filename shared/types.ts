@@ -155,6 +155,11 @@ export type Top = string;
 export type Bottom = string;
 export type Accent = string;
 export type Svg = string | null;
+/**
+ * Another character's id in the scene
+ */
+export type Partner = string;
+export type Kind = "hug" | "hold_hands" | "high_five" | "arm_around";
 export type Id3 = string;
 export type Name1 = string;
 /**
@@ -515,6 +520,16 @@ export interface CharacterColors {
   accent: Accent;
 }
 /**
+ * Two characters touching: the renderer stands the pair together and poses both so their hands meet.
+ *
+ * This interface was referenced by `Schema`'s JSON-Schema
+ * via the `definition` "Contact".
+ */
+export interface Contact {
+  partner: Partner;
+  kind: Kind;
+}
+/**
  * This interface was referenced by `Schema`'s JSON-Schema
  * via the `definition` "CustomObject".
  */
@@ -576,6 +591,7 @@ export interface SceneCharacter {
   holding?: Holding1;
   looks_at?: LooksAt;
   wear?: Wear | null;
+  contact?: Contact | null;
 }
 /**
  * What a character wears in one scene instead of their usual look; a field left out keeps the cast's own.
