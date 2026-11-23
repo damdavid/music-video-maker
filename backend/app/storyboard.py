@@ -6,9 +6,13 @@ import re
 import anthropic
 from pydantic import BaseModel, Field
 
+from typing import get_args
+
 from app.models import (
     Accessory,
+    Action,
     AnalysisData,
+    ContactKind,
     CustomObject,
     Expression,
     Gender,
@@ -17,6 +21,7 @@ from app.models import (
     Held,
     Illustration,
     ObjectSize,
+    Placement,
     Lyrics,
     Outfit,
     Project,
@@ -73,44 +78,74 @@ class LooseCharacter(BaseModel):
     id: str = Field(description='Short id of lowercase letters, digits and underscores, like "hero"')
     name: str = ""
     description: str = Field(default="", description="Who they are; shown in the editor and given to Claude for continuity")
-    gender: Gender = Field(default="male", description="male or female, to match who they are")
-    hair: Hair = "short"
-    outfit: Outfit = "tee"
-    hat: Hat | None = None
-    accessories: list[Accessory] = Field(default_factory=list, description="At most 2")
+    gender: str = Field(default="male", description="male or female, to match who they are")
+    hair: str = "short"
+    outfit: str = "tee"
+    hat: str | None = None
+    accessories: list[str] = Field(default_factory=list, description="At most 2")
     build: float = Field(default=1.0, description="Height scale, 0.85 to 1.15")
     colors: LooseColors
+
+
+# Choices are plain text here, not enums: the API compiles the output schema into a grammar and refuses one with this many
+# enum values. The allowed words are listed in the instructions (see _vocabulary) and checked afterwards.
+class LooseWear(BaseModel):
+    outfit: str | None = None
+    hat: str | None = Field(default=None, description='A hat name, or "none" to take their hat off')
+    accessories: list[str] | None = Field(default=None, description="At most 2; an empty list takes them off")
+
+
+class LooseContact(BaseModel):
+    partner: str = Field(description="Another character's id in the scene")
+    kind: str
+
+
+class LooseSceneCharacter(BaseModel):
+    character_id: str
+    action: str = "idle"
+    expression: str | None = None
+    placement: str = "center"
+    facing: str = "right"
+    holding: str | None = None
+    looks_at: str | None = Field(default=None, description='Another character\'s id in the scene, or "camera"')
+    wear: LooseWear | None = None
+    contact: LooseContact | None = None
+
+
+class LooseSceneObject(BaseModel):
+    object_id: str
+    placement: str = "right"
 
 
 class LooseScene(BaseModel):
     section_ref: int
     description: str = Field(default="", description="One-line storyboard note")
-    setting: Setting
-    time_of_day: TimeOfDay = "night"
-    weather: Weather = "clear"
-    characters: list[SceneCharacter] = Field(default_factory=list, description="At most 3")
+    setting: str
+    time_of_day: str = "night"
+    weather: str = "clear"
+    characters: list[LooseSceneCharacter] = Field(default_factory=list, description="At most 3")
     crowd: int | None = Field(default=None, description="Background figures, 0 to 8; leave out to let the renderer decide")
-    props: list[Prop] = Field(default_factory=list, description="At most 4")
-    objects: list[SceneObject] = Field(default_factory=list, description="At most 3")
+    props: list[str] = Field(default_factory=list, description="At most 4")
+    objects: list[LooseSceneObject] = Field(default_factory=list, description="At most 3")
     include: list[str] = Field(default_factory=list, description="Short phrases for the concrete things from the creator's direction that the backdrop must show clearly, at most 6")
 
 
 class LooseMood(BaseModel):
     line: int = Field(description="Number of the lyric line, as given under lyric_lines")
-    expression: Expression
+    expression: str
 
 
 class LooseCue(BaseModel):
     line: int = Field(description="Number of the lyric line, as given under lyric_lines")
-    symbol: Symbol | None = None
-    holding: Held | None = None
+    symbol: str | None = None
+    holding: str | None = None
 
 
 class LooseNewObject(BaseModel):
     id: str = Field(description='Short id of lowercase letters, digits and underscores, like "lighthouse"')
     name: str = ""
     description: str = Field(default="", description="What it looks like; given to the artist who draws it")
-    size: ObjectSize = "medium"
+    size: str = "medium"
 
 
 class LooseRedo(BaseModel):
@@ -134,6 +169,61 @@ def _ident(raw: str, fallback: str = "") -> str:
     return re.sub(r"[^a-z0-9_]+", "_", raw.strip().lower()).strip("_")[:40] or fallback
 
 
+def _words(literal) -> tuple[str, ...]:
+    return get_args(literal)
+
+
+GENDERS, HAIRS, OUTFITS, HATS, ACCESSORIES = _words(Gender), _words(Hair), _words(Outfit), _words(Hat), _words(Accessory)
+SETTINGS, TIMES, WEATHERS, PROPS = _words(Setting), _words(TimeOfDay), _words(Weather), _words(Prop)
+ACTIONS, EXPRESSIONS, PLACEMENTS, HELD, SYMBOLS = _words(Action), _words(Expression), _words(Placement), _words(Held), _words(Symbol)
+CONTACTS, SIZES = _words(ContactKind), _words(ObjectSize)
+
+
+def _vocabulary() -> str:
+    """The words Claude may use for each choice, in the instructions, since the output schema no longer lists them."""
+    rows = [
+        ("setting", SETTINGS), ("time_of_day", TIMES), ("weather", WEATHERS), ("props", PROPS), ("placement (of a character or object)", PLACEMENTS), ("facing", ("left", "right")),
+        ("action", ACTIONS), ("expression", EXPRESSIONS), ("holding", HELD), ("contact kind", CONTACTS), ("symbol (in cues)", SYMBOLS),
+        ("gender", GENDERS), ("hair", HAIRS), ("outfit (also in wear)", OUTFITS), ("hat (also in wear, where \"none\" removes it)", HATS), ("accessories", ACCESSORIES), ("object size", SIZES),
+    ]
+    return "\n\nAllowed values (use exactly these words, written like this; anything else is ignored and replaced by a default):\n" + "\n".join(f"- {name}: {', '.join(words)}" for name, words in rows)
+
+
+SYSTEM += _vocabulary()
+
+
+def _one(value: str | None, allowed: tuple[str, ...], default: str | None = None) -> str | None:
+    """A choice if it is one of the allowed words (any case, spaces for underscores), else the default."""
+    word = (value or "").strip().lower().replace(" ", "_").replace("-", "_")
+    return word if word in allowed else default
+
+
+def _list_of(values: list[str] | None, allowed: tuple[str, ...], limit: int) -> list[str]:
+    return list(dict.fromkeys(w for w in (_one(v, allowed) for v in values or []) if w))[:limit]
+
+
+def _character(c: LooseSceneCharacter) -> dict:
+    """One character in a scene, with every choice checked; what is not allowed falls back to the default."""
+    wear = None
+    if c.wear:
+        hat = _one(c.wear.hat, (*HATS, "none"))
+        accessories = None if c.wear.accessories is None else _list_of(c.wear.accessories, ACCESSORIES, 2)
+        outfit = _one(c.wear.outfit, OUTFITS)
+        wear = {"outfit": outfit, "hat": hat, "accessories": accessories} if (outfit or hat or accessories is not None) else None
+    kind = _one(c.contact.kind, CONTACTS) if c.contact else None
+    return {
+        "character_id": _ident(c.character_id),
+        "action": _one(c.action, ACTIONS, "idle"),
+        "expression": _one(c.expression, EXPRESSIONS),
+        "placement": _one(c.placement, PLACEMENTS, "center"),
+        "facing": _one(c.facing, ("left", "right"), "right"),
+        "holding": _one(c.holding, HELD),
+        "looks_at": c.looks_at,
+        "wear": wear,
+        "contact": {"partner": c.contact.partner, "kind": kind} if kind else None,
+    }
+
+
 def _cast(cast: list[LooseCharacter]) -> list[dict]:
     out: dict[str, dict] = {}
     for i, c in enumerate(cast):
@@ -141,13 +231,17 @@ def _cast(cast: list[LooseCharacter]) -> list[dict]:
         if cid in out:
             continue
         colors = {k: _hex(v) or DEFAULT_COLORS[k] for k, v in c.colors.model_dump().items()}
-        out[cid] = {**c.model_dump(include={"name", "description", "gender", "hair", "outfit", "hat"}), "id": cid, "accessories": list(dict.fromkeys(c.accessories))[:2], "build": _clamp(c.build, 0.85, 1.15), "colors": colors}
+        out[cid] = {
+            "name": c.name, "description": c.description, "id": cid, "colors": colors, "build": _clamp(c.build, 0.85, 1.15),
+            "gender": _one(c.gender, GENDERS, "male"), "hair": _one(c.hair, HAIRS, "short"), "outfit": _one(c.outfit, OUTFITS, "tee"),
+            "hat": _one(c.hat, HATS), "accessories": _list_of(c.accessories, ACCESSORIES, 2),
+        }
     return list(out.values())[:MAX_CAST]
 
 
 def _scene(s: LooseScene, cast_ids: set[str], object_ids: set[str]) -> dict:
     """References are matched the way ids were repaired, so "Hero" in a scene still finds the cast's "hero"."""
-    characters = [{**c.model_dump(), "character_id": _ident(c.character_id)} for c in s.characters]
+    characters = [_character(c) for c in s.characters]
     here = {c["character_id"] for c in characters}
     for c in characters:
         # A gaze must land on someone else who is in the scene, or the camera.
@@ -161,12 +255,16 @@ def _scene(s: LooseScene, cast_ids: set[str], object_ids: set[str]) -> dict:
         c["contact"] = {"partner": partner, "kind": c["contact"]["kind"]} if ok else None
         if ok:
             paired |= {c["character_id"], partner}
-    objects = [{**o.model_dump(), "object_id": _ident(o.object_id)} for o in s.objects]
+    objects = [{"object_id": _ident(o.object_id), "placement": _one(o.placement, PLACEMENTS, "right")} for o in s.objects]
     return {
-        **s.model_dump(include={"section_ref", "description", "setting", "time_of_day", "weather"}),
+        "section_ref": s.section_ref,
+        "description": s.description,
+        "setting": _one(s.setting, SETTINGS, "road"),
+        "time_of_day": _one(s.time_of_day, TIMES, "night"),
+        "weather": _one(s.weather, WEATHERS, "clear"),
         "characters": [c for c in characters if c["character_id"] in cast_ids][:3],
         "objects": [o for o in objects if o["object_id"] in object_ids][:3],
-        "props": list(dict.fromkeys(s.props))[:4],
+        "props": _list_of(s.props, PROPS, 4),
         "crowd": None if s.crowd is None else int(_clamp(s.crowd, 0, 8)),
         "include": list(dict.fromkeys(t[:60] for t in (i.strip() for i in s.include) if t))[:6],
     }
@@ -182,7 +280,7 @@ def _new_objects(draft: list[LooseNewObject], taken: set[str]) -> list[dict]:
         oid = _ident(o.id, "")
         if not oid or oid in taken or len(taken) + len(out) >= MAX_OBJECTS:
             continue
-        out.append({"id": oid, "name": o.name.strip()[:60], "description": o.description.strip()[:300], "size": o.size})
+        out.append({"id": oid, "name": o.name.strip()[:60], "description": o.description.strip()[:300], "size": _one(o.size, SIZES, "medium")})
         taken = taken | {oid}
     return out
 
@@ -198,8 +296,9 @@ def _cues(draft: list[LooseCue], lyrics: Lyrics | None) -> list[dict]:
         return []
     at: dict[float, dict] = {}
     for c in draft:
-        if 0 <= c.line < len(lyrics.lines) and (c.symbol or c.holding):
-            at[round(lyrics.lines[c.line].start, 2)] = {"at": round(lyrics.lines[c.line].start, 2), "symbol": c.symbol, "holding": c.holding}
+        symbol, holding = _one(c.symbol, SYMBOLS), _one(c.holding, HELD)
+        if 0 <= c.line < len(lyrics.lines) and (symbol or holding):
+            at[round(lyrics.lines[c.line].start, 2)] = {"at": round(lyrics.lines[c.line].start, 2), "symbol": symbol, "holding": holding}
     return [at[t] for t in sorted(at)]
 
 
@@ -256,8 +355,9 @@ def _moods(draft: list[LooseMood], lyrics: Lyrics | None) -> list[dict]:
         return []
     at = {}
     for m in draft:
-        if 0 <= m.line < len(lyrics.lines):
-            at[round(lyrics.lines[m.line].start, 2)] = m.expression
+        expression = _one(m.expression, EXPRESSIONS)
+        if expression and 0 <= m.line < len(lyrics.lines):
+            at[round(lyrics.lines[m.line].start, 2)] = expression
     return [{"at": t, "expression": e} for t, e in sorted(at.items())]
 
 

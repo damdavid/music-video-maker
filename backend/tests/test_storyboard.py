@@ -148,8 +148,7 @@ def test_api_rejects_unsafe_art_and_stores_the_cleaned_version(api):
 
 
 def test_a_scene_keeps_what_a_character_holds_and_a_gaze_that_lands_on_someone():
-    from app.models import SceneCharacter
-    from app.storyboard import LooseScene, _scene
+    from app.storyboard import LooseScene, LooseSceneCharacter as SceneCharacter, _scene
 
     def scene(*chars):
         return _scene(LooseScene(section_ref=0, setting="road", characters=list(chars)), {"a", "b"}, set())["characters"]
@@ -253,8 +252,7 @@ def test_a_storyboard_saved_before_cues_still_loads():
 
 
 def test_a_contact_must_name_another_character_in_the_scene_and_a_character_joins_one_pair():
-    from app.models import Contact, SceneCharacter
-    from app.storyboard import LooseScene, _scene
+    from app.storyboard import LooseContact as Contact, LooseSceneCharacter as SceneCharacter, LooseScene, _scene
 
     def contacts(*chars):
         out = _scene(LooseScene(section_ref=0, setting="road", characters=list(chars)), {"a", "b", "c"}, set())["characters"]

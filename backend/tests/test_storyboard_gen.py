@@ -286,3 +286,65 @@ def test_the_redo_route_adds_new_objects_to_the_saved_board(api, monkeypatch):
     assert res.status_code == 200 and [o["id"] for o in res.json()["new_objects"]] == ["pier"]
     saved = client.get(f"/projects/{pid}/storyboard").json()
     assert [o["id"] for o in saved["objects"]] == ["pier"]
+
+
+# ---- the schema sent to Claude must stay small enough for the API's grammar compiler
+
+def test_the_schemas_sent_to_claude_have_no_enums_so_the_grammar_stays_small():
+    # The API refused the storyboard schema ("compiled grammar is too large") once it listed every outfit, hat, action and item as an enum.
+    for model in (LooseStoryboard, LooseRedo):
+        schema = json.dumps(model.model_json_schema())
+        assert '"enum"' not in schema and "const" not in schema, model.__name__
+
+
+def test_the_instructions_list_every_allowed_word_so_the_model_does_not_need_the_enums():
+    from app.storyboard import ACCESSORIES, ACTIONS, CONTACTS, EXPRESSIONS, HATS, HELD, OUTFITS, PROPS, SETTINGS, SYMBOLS
+
+    for words in (SETTINGS, ACTIONS, EXPRESSIONS, OUTFITS, HATS, ACCESSORIES, HELD, PROPS, SYMBOLS, CONTACTS):
+        assert words and all(w in SYSTEM for w in words)
+    assert "Allowed values" in SYSTEM and "armor" in SYSTEM and "helmet" in SYSTEM and "shield" in SYSTEM and "hold_hands" in SYSTEM
+
+
+def test_wrong_words_are_repaired_to_defaults_instead_of_failing_the_storyboard():
+    draft = _draft(
+        [
+            _scene(
+                0, "moon", time_of_day="teatime", weather="hail", props=["lamp", "Tree", "rocket", "lamp"],
+                characters=[],
+            ),
+        ],
+        cast=[{"id": "hero", "colors": COLORS, "gender": "robot", "hair": "mohawk", "outfit": "toga", "hat": "Top Hat", "accessories": ["Glasses", "monocle", "glasses", "scarf", "backpack"]}],
+    )
+    draft.scenes[0].characters = [
+        __import__("app.storyboard", fromlist=["LooseSceneCharacter"]).LooseSceneCharacter(
+            character_id="hero", action="moonwalk", expression="smug", placement="middle", facing="up", holding="bazooka",
+            wear={"outfit": "Robe", "hat": "fez", "accessories": ["scarf", "cape"]},
+        )
+    ]
+    board = generate_storyboard(PROJECT, _analysis(), None, None, client=FakeClient(draft))
+    hero = board.cast[0]
+    assert (hero.gender, hero.hair, hero.outfit, hero.hat, hero.accessories) == ("male", "short", "tee", "top_hat", ["glasses", "scarf"])
+    scene = board.scenes[0]
+    assert (scene.setting, scene.time_of_day, scene.weather, scene.props) == ("road", "night", "clear", ["lamp", "tree"])
+    c = scene.characters[0]
+    assert (c.action, c.expression, c.placement, c.facing, c.holding) == ("idle", None, "center", "right", None)
+    assert (c.wear.outfit, c.wear.hat, c.wear.accessories) == ("robe", None, ["scarf"])
+
+
+def test_valid_words_written_loosely_are_understood():
+    from app.storyboard import LooseSceneCharacter, _character, _one
+
+    assert _one("Top Hat", ("top_hat",)) == "top_hat" and _one("hold-hands", ("hold_hands",)) == "hold_hands" and _one(None, ("a",), "z") == "z"
+    c = _character(LooseSceneCharacter(character_id="Hero", action="Cheer", holding="SWORD", wear={"hat": "none"}, contact={"partner": "b", "kind": "Hug"}))
+    assert (c["character_id"], c["action"], c["holding"], c["wear"], c["contact"]) == ("hero", "cheer", "sword", {"outfit": None, "hat": "none", "accessories": None}, {"partner": "b", "kind": "hug"})
+    assert _character(LooseSceneCharacter(character_id="a", contact={"partner": "b", "kind": "kiss"}))["contact"] is None  # a wrong kind is no contact
+
+
+def test_moods_and_cues_with_wrong_words_are_dropped():
+    from app.models import Line, Lyrics
+    from app.storyboard import LooseCue, LooseMood, _cues, _moods
+
+    lyrics = Lyrics(lines=[Line(start=1.0, end=2.0, text="a"), Line(start=5.0, end=6.0, text="b")])
+    assert _moods([LooseMood(line=0, expression="Sad"), LooseMood(line=1, expression="smug")], lyrics) == [{"at": 1.0, "expression": "sad"}]
+    cues = _cues([LooseCue(line=0, symbol="Heart", holding="bazooka"), LooseCue(line=1, symbol="dragon", holding="rocket")], lyrics)
+    assert cues == [{"at": 1.0, "symbol": "heart", "holding": None}]
